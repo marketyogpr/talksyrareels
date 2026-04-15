@@ -1,0 +1,16 @@
+name = "shortstalks-backend"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+account_id = "3ff2b455ebd33a9dfc733d1db3afa8f1"
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "socialapkdatabase" # अपना D1 नाम यहाँ लिखें
+database_id = "e5c60c09-bbc6-474f-a8f5-e6f279474b41"     # अपनी D1 ID यहाँ लिखें
+
+# R2 Bucket Binding
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "socialapkvideos" # अपना R2 नाम यहाँ लिखें
