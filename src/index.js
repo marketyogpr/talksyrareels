@@ -36,6 +36,33 @@ export default {
         return new Response(JSON.stringify({ success: true, url: mediaUrl }), { headers: corsHeaders });
       }
 
+      // --- USER REGISTRATION ---
+      if (url.pathname === "/api/user/register" && method === "POST") {
+        const user = await request.json();
+
+        await env.DB.prepare(`
+          INSERT INTO users (
+            userId, username, fullName, bio, 
+            followerCount, followingCount, postCount, 
+            coinBalance, isVerified, isPremiumVerified, isPrivate
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+          user.userId,
+          user.username,
+          user.fullName,
+          user.bio,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ).run();
+
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
       // --- 2. FETCH FEED (From D1) ---
       if (url.pathname === "/api/posts" && method === "GET") {
         const mood = url.searchParams.get("mood") || "All";
