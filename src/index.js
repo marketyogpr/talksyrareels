@@ -1,3 +1,44 @@
+async function handleRegister(request, env, corsHeaders) {
+  const user = await request.json();
+  try {
+    await env.DB.prepare(
+      "INSERT INTO users (userId, username, password, fullName, bio, coinBalance, isVerified) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).bind(user.userId, user.username, user.password, user.fullName, user.bio, 50, 0).run();
+
+    return new Response("User Created", { status: 201, headers: corsHeaders });
+  } catch (e) {
+    return new Response("Error: " + e.message, { status: 400, headers: corsHeaders });
+  }
+}
+
+async function handleLogin(request, env, corsHeaders) {
+  const url = new URL(request.url);
+  const username = url.searchParams.get("username");
+  const password = url.searchParams.get("password");
+
+  const user = await env.DB.prepare(
+    "SELECT * FROM users WHERE username = ? AND password = ?"
+  ).bind(username, password).first();
+
+  if (user) {
+    return new Response(JSON.stringify(user), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  } else {
+    return new Response("Invalid Username or Password", { status: 401, headers: corsHeaders });
+  }
+}
+
+async function handleUpdateProfile(request, env, corsHeaders) {
+  const user = await request.json();
+  await env.DB.prepare(
+    "UPDATE users SET fullName = ?, username = ?, bio = ?, location = ?, website = ? WHERE userId = ?"
+  ).bind(user.fullName, user.username, user.bio, user.location, user.website, user.userId).run();
+
+  return new Response("Updated", { status: 200, headers: corsHeaders });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -38,29 +79,17 @@ export default {
 
       // --- USER REGISTRATION ---
       if (url.pathname === "/api/user/register" && method === "POST") {
-        const user = await request.json();
+        return handleRegister(request, env, corsHeaders);
+      }
 
-        await env.DB.prepare(`
-          INSERT INTO users (
-            userId, username, fullName, bio, 
-            followerCount, followingCount, postCount, 
-            coinBalance, isVerified, isPremiumVerified, isPrivate
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-          user.userId,
-          user.username,
-          user.fullName,
-          user.bio,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0
-        ).run();
+      // --- USER LOGIN ---
+      if (url.pathname === "/api/user/login" && method === "GET") {
+        return handleLogin(request, env, corsHeaders);
+      }
 
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      // --- USER PROFILE UPDATE ---
+      if (url.pathname === "/api/user/update" && method === "POST") {
+        return handleUpdateProfile(request, env, corsHeaders);
       }
 
       // --- 2. FETCH FEED (From D1) ---
