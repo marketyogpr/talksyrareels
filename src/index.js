@@ -78,8 +78,7 @@ export default {
         if (mediaFile) {
           const fileName = `media-${Date.now()}-${mediaFile.name}`;
           await env.BUCKET.put(fileName, mediaFile.stream());
-          // IMPORTANT: Replace with your actual R2 Public URL
-          mediaUrl = `https://pub-your-id.r2.dev/${fileName}`; 
+          mediaUrl = `https://pub-d825be7386864d659719039d891d33de.r2.dev/${fileName}`;
         }
 
         await env.DB.prepare(
