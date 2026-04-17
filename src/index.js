@@ -18,6 +18,9 @@ export default {
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
+    const r2PublicUrl = env.R2_PUBLIC_URL ||
+      "https://3ff2b455ebd33a9dfc733d1db3afa8f1.r2.cloudflarestorage.com/socialapkvideos";
+
     if (method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
@@ -42,7 +45,7 @@ export default {
         if (profilePic && profilePic.size > 0) {
           const fileName = `profiles/${userId}_${Date.now()}.jpg`;
           await env.BUCKET.put(fileName, profilePic.stream());
-          profilePicUrl = `https://your-r2-public-url.com/${fileName}`;
+          profilePicUrl = `${r2PublicUrl}/${fileName}`;
         }
 
         await env.DB.prepare(
@@ -108,14 +111,14 @@ export default {
           const fileName = `profiles/${userId}_p_${Date.now()}.jpg`;
           await env.BUCKET.put(fileName, profilePic.stream());
           updateQuery += ", profilePicUrl = ?";
-          params.push(`https://your-r2-public-url.com/${fileName}`);
+          params.push(`${r2PublicUrl}/${fileName}`);
         }
 
         if (coverPic && coverPic.size > 0) {
           const fileName = `covers/${userId}_c_${Date.now()}.jpg`;
           await env.BUCKET.put(fileName, coverPic.stream());
           updateQuery += ", coverPicUrl = ?";
-          params.push(`https://your-r2-public-url.com/${fileName}`);
+          params.push(`${r2PublicUrl}/${fileName}`);
         }
 
         updateQuery += " WHERE userId = ?";
@@ -152,7 +155,7 @@ export default {
         if (media && typeof media !== "string" && media.size > 0) {
           const fileName = `stalk-${Date.now()}-${media.name || "file"}`;
           await env.BUCKET.put(fileName, media.stream());
-          mediaUrl = `https://pub-d825be7386864d659719039d891d33de.r2.dev/${fileName}`;
+          mediaUrl = `${r2PublicUrl}/${fileName}`;
         }
 
         const timestamp = new Date().toISOString();
