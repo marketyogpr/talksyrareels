@@ -49,10 +49,27 @@ export default {
         }
 
         await env.DB.prepare(
-          `INSERT INTO users (userId, username, fullName, email, password, birthDate, profilePicUrl, bio, coinBalance, followerCount, followingCount, postCount, isVerified, isPremiumUser, isPrivate, isGhostMode, createdAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, '', 50, 0, 0, 0, 0, 0, 0, 0, ?)`
+          `INSERT INTO users (
+             userId, username, fullName, birthDate, password, email,
+             profilePicUrl, coverPicUrl, bio, location, website,
+             followerCount, followingCount, postCount, coinBalance,
+             isVerified, isPremiumVerified, isPrivate, isGhostMode, createdAt
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, ?)`
         )
-          .bind(userId, username, fullName, email, password, birthDate, profilePicUrl, new Date().toISOString())
+          .bind(
+            userId,
+            username,
+            fullName,
+            birthDate,
+            password,
+            email,
+            profilePicUrl,
+            "",
+            "",
+            "",
+            "",
+            new Date().toISOString()
+          )
           .run();
 
         return new Response("User Registered", { status: 200, headers: corsHeaders });
@@ -65,9 +82,9 @@ export default {
         const pass = form.get("password") || "";
 
         const userData = await env.DB.prepare(
-          "SELECT * FROM users WHERE username = ? AND password = ?"
+          "SELECT * FROM users WHERE (username = ? OR email = ?) AND password = ?"
         )
-          .bind(user, pass)
+          .bind(user, user, pass)
           .first();
 
         if (!userData) {
