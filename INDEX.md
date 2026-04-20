@@ -83,7 +83,7 @@ Database:
 
 ### Example Prompt for Gemini:
 ```
-Backend URL: https://shortstalks-backend.marketyogpr.workers.dev
+Backend URL: https://talksyrareels.buyviro.workers.dev
 
 Read GEMINI_SUMMARY.md for context.
 

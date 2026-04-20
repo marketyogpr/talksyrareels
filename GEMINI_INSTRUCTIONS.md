@@ -9,7 +9,7 @@ You are integrating a Social Media Short Video App (ShortsTalkSyra) with a Cloud
 
 ### Backend Base URL:
 ```
-https://shortstalks-backend.marketyogpr.workers.dev
+https://talksyrareels.buyviro.workers.dev
 (or wherever deployed)
 ```
 
@@ -546,7 +546,7 @@ Generate code that:
 ```
 I'm building a TikTok-like app called ShortsTalkSyra.
 
-Backend URL: https://shortstalks-backend.marketyogpr.workers.dev
+Backend URL: https://talksyrareels.buyviro.workers.dev
 
 Available endpoints:
 - POST /api/posts/create (create video post with multipart upload)
