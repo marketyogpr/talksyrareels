@@ -114,7 +114,7 @@ fun createPost(
     val body = MultipartBody.Builder()
         .addFormDataPart("userId", userId)
         .addFormDataPart("username", username)
-        .addFormDataPart("type", "reel")
+        .addFormDataPart("type", "video")
         .addFormDataPart("content", caption)
         .addFormDataPart("tags", tags)
         .addFormDataPart("visibility", "public")
@@ -148,7 +148,7 @@ postId (UNIQUE) ← Automatically generated
 ├── userId
 ├── username
 ├── userImage
-├── type ('post', 'reel', 'story')
+├── type ('post', 'video', 'story')
 ├── content (caption)
 ├── mediaUrl (R2 link)
 ├── thumbnailUrl
@@ -261,7 +261,7 @@ Body:
   userId: "user123",
   username: "john_doe",
   userImage: "https://...",
-  type: "reel",
+  type: "video",
   content: "Check this out! 🔥",
   tags: "#viral,#trending",
   locationName: "Mumbai",

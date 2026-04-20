@@ -122,7 +122,7 @@ Parameters:
   REQUIRED:
     - userId (TEXT) - किस user ने post किया
     - username (TEXT) - Username (for display)
-    - type (TEXT) - 'post', 'reel', 'story'
+    - type (TEXT) - 'post', 'video', 'story' (auto-detected as 'video' if media uploaded)
     - media (FILE) - Video/Image file
 
   OPTIONAL:
@@ -172,7 +172,7 @@ Response:
         "userId": "user123",
         "username": "john_doe",
         "userImage": "https://...",
-        "type": "reel",
+        "type": "video",
         "content": "Check this out! 🔥",
         "mediaUrl": "https://buyviro.com/posts/user123/video.mp4",
         "thumbnailUrl": "https://...",

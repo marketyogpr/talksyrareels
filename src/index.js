@@ -187,7 +187,7 @@ export default {
         const username = form.get("username") || "User";
         const userImage = form.get("userImage") || defaultProfilePicUrl;
         const isVerified = parseInt(form.get("isVerified")) || 0;
-        const type = form.get("type") || "post"; // 'post', 'reel', 'story'
+        const type = form.get("type") || (media ? "video" : "post"); // Auto-detect: 'video' if media uploaded, else 'post'
         const content = form.get("content") || "";
         const language = form.get("language") || "en";
         const visibility = form.get("visibility") || "public";

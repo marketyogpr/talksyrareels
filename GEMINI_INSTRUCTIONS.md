@@ -278,7 +278,7 @@ async function createPost(videoFile, thumbnailFile, caption, tags) {
     formData.append("userId", user.userId);
     formData.append("username", user.username);
     formData.append("userImage", user.profilePic);
-    formData.append("type", "reel");
+    formData.append("type", "video");
     formData.append("content", caption);
     formData.append("tags", tags);
     formData.append("visibility", "public");
@@ -503,7 +503,7 @@ Generate code that:
   userId: "user123",
   username: "john_doe",
   userImage: "https://...",
-  type: "reel",
+  type: "video",
   content: "Amazing video! 🔥",
   mediaUrl: "https://buyviro.com/posts/user123/video.mp4",
   thumbnailUrl: "https://...",
