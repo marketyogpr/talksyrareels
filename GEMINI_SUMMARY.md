@@ -240,6 +240,373 @@ CREATE TABLE notifications (
 );
 ```
 
+### TABLE 11: `conversations` ⭐ NEW
+```sql
+CREATE TABLE conversations (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,              -- "private" or "group"
+    name TEXT,                       -- Group name
+    image TEXT,                      -- Group image URL
+    last_message_id TEXT,
+    last_message_text TEXT,
+    last_message_time TEXT,
+    created_by TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(userId)
+);
+```
+
+### TABLE 12: `messages` ⭐ NEW
+```sql
+CREATE TABLE messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    type TEXT NOT NULL,              -- "text", "image", "video", "audio"
+    content TEXT,
+    media_url TEXT,
+    thumbnail_url TEXT,
+    parent_id TEXT,                  -- For replies/threads
+    is_deleted INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (sender_id) REFERENCES users(userId)
+);
+```
+
+### TABLE 13: `conversation_members` ⭐ NEW
+```sql
+CREATE TABLE conversation_members (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT DEFAULT 'member',      -- "member", "admin", "moderator"
+    joined_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    left_at TEXT,                    -- NULL if still in conversation
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (user_id) REFERENCES users(userId)
+);
+```
+
+### TABLE 14: `message_reads` ⭐ NEW
+```sql
+CREATE TABLE message_reads (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    status TEXT DEFAULT 'delivered',  -- "delivered", "seen"
+    seen_at TEXT,
+    FOREIGN KEY (message_id) REFERENCES messages(id),
+    FOREIGN KEY (user_id) REFERENCES users(userId)
+);
+```
+
+### TABLE 15: `calls` ⭐ NEW
+```sql
+CREATE TABLE calls (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT,             -- NULL for direct calls
+    caller_id TEXT NOT NULL,
+    call_type TEXT,                   -- "voice" or "video"
+    call_status TEXT,                 -- "ringing", "answered", "ended", "missed"
+    started_at TEXT,
+    answered_at TEXT,
+    ended_at TEXT,
+    duration INTEGER,                 -- In seconds
+    room_id TEXT,
+    session_id TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (caller_id) REFERENCES users(userId)
+);
+```
+
+### TABLE 16: `call_participants` ⭐ NEW
+```sql
+CREATE TABLE call_participants (
+    id TEXT PRIMARY KEY,
+    call_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    join_time TEXT,
+    leave_time TEXT,
+    role TEXT,                        -- "caller", "participant"
+    status TEXT,                      -- "active", "inactive"
+    FOREIGN KEY (call_id) REFERENCES calls(id),
+    FOREIGN KEY (user_id) REFERENCES users(userId)
+);
+```
+
+---
+
+## 🔌 WEBSOCKET REAL-TIME ARCHITECTURE
+
+### Overview
+TalkSyra real-time messaging aur P2P calling ke liye **WebSocket + Durable Objects** use karta hai:
+
+```
+APK (Flutter) ←→ Cloudflare Worker ←→ Durable Objects (User Sessions) ←→ D1 Database
+                                                      ↓
+                                              Real-time message routing
+                                              WebRTC signal relaying
+```
+
+### Components
+
+#### 1. **Durable Objects (UserSession)**
+- Har user ke liye ek persistent instance
+- WebSocket connections manage karta hai
+- Message routing aur call signaling handle karta hai
+- In-memory session state maintain karta hai
+
+#### 2. **D1 Database**
+- Chat messages ko permanently store karta hai
+- Call logs maintain karta hai
+- Only messages ko save karta hai, signals nahi (low latency ke liye)
+
+#### 3. **WebSocket Protocol**
+- APK aur backend ke beech real-time two-way communication
+- Messages, signals dono transmit hote hain
+- Automatic reconnection handle hota hai APK mein
+
+---
+
+### WebSocket Connection Setup
+
+#### APK Side (Flutter)
+```dart
+// Connect to WebSocket
+final String wsUrl = "wss://your-worker.dev/ws?userId=USER_ID";
+final WebSocketChannel channel = WebSocketChannel.connect(
+  Uri.parse(wsUrl),
+);
+
+// Listen for messages
+channel.stream.listen((message) {
+  Map data = jsonDecode(message);
+  
+  if (data['type'] == 'message') {
+    // Handle chat message
+    handleChatMessage(data);
+  } else if (data['type'] == 'offer') {
+    // Handle call offer (WebRTC)
+    handleCallOffer(data);
+  } else if (data['type'] == 'answer') {
+    // Handle call answer
+    handleCallAnswer(data);
+  } else if (data['type'] == 'candidate') {
+    // Handle ICE candidate
+    handleIceCandidate(data);
+  }
+});
+```
+
+#### Backend Setup (Cloudflare)
+```javascript
+// wrangler.toml configuration
+[[durable_objects.bindings]]
+name = "USER_SESSION"
+class_name = "UserSession"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["UserSession"]
+```
+
+---
+
+### WebSocket Message Types
+
+#### 1. CHAT MESSAGE
+```json
+{
+  "type": "message",
+  "targetId": "user456",
+  "conversationId": "conv_123",
+  "senderId": "user123",
+  "message": {
+    "type": "text",
+    "content": "Hello! 👋",
+    "created_at": "2024-01-01T12:30:00Z"
+  }
+}
+```
+
+**Backend Action:**
+1. Message ko D1 database mein INSERT karo
+2. Target user online hai to directly send karo
+3. Target offline hai to FCM notification send karo
+
+---
+
+#### 2. CALL OFFER (Initiate Call)
+```json
+{
+  "type": "offer",
+  "targetId": "user456",
+  "callerId": "user123",
+  "callType": "video",
+  "offer": {
+    "type": "offer",
+    "sdp": "v=0\no=- ... (WebRTC SDP)"
+  }
+}
+```
+
+**Backend Action:**
+- Direct memory se relay (database mein nahi save)
+- Target user ko immediately forward karo
+- Low latency (milliseconds mein)
+
+---
+
+#### 3. CALL ANSWER (Accept Call)
+```json
+{
+  "type": "answer",
+  "targetId": "user123",
+  "senderId": "user456",
+  "answer": {
+    "type": "answer",
+    "sdp": "v=0\no=- ... (WebRTC SDP)"
+  }
+}
+```
+
+**Backend Action:**
+- Directly relay to caller
+- No database persistence needed
+
+---
+
+#### 4. ICE CANDIDATE (Network Path)
+```json
+{
+  "type": "candidate",
+  "targetId": "user456",
+  "senderId": "user123",
+  "candidate": {
+    "candidate": "candidate:842163049 ...",
+    "sdpMLineIndex": 0,
+    "sdpMid": "0"
+  }
+}
+```
+
+**Backend Action:**
+- Relay directly to target
+- Fast forwarding in memory
+
+---
+
+### WebSocket Flow Examples
+
+#### Chat Message Flow
+```
+┌─────────────┐                                      ┌─────────────┐
+│   APK #1    │                                      │   APK #2    │
+│  (user123)  │                                      │  (user456)  │
+└──────┬──────┘                                      └──────▲──────┘
+       │                                                    │
+       │ WebSocket.send({type: "message"})                │
+       └──────────────────────────────────────┬───────────┘
+                                              │
+                               ┌──────────────▼─────────────┐
+                               │  Cloudflare Worker         │
+                               │  ┌──────────────────────┐  │
+                               │  │ UserSession (DO)     │  │
+                               │  │ ┌────────────────┐   │  │
+                               │  │ │ sessions Map   │   │  │
+                               │  │ │ user123 → ws1  │   │  │
+                               │  │ │ user456 → ws2  │   │  │
+                               │  │ └────────────────┘   │  │
+                               │  └──────────────────────┘  │
+                               │           ▼                │
+                               │  ┌──────────────────────┐  │
+                               │  │ D1 Database          │  │
+                               │  │ INSERT messages      │  │
+                               │  │ UPDATE conversations │  │
+                               │  └──────────────────────┘  │
+                               └──────────────────────────┘
+```
+
+#### P2P Call Flow (WebRTC Signaling)
+```
+┌─────────────┐                                      ┌─────────────┐
+│   APK #1    │                                      │   APK #2    │
+│  (Caller)   │                                      │ (Receiver)  │
+└──────┬──────┘                                      └──────▲──────┘
+       │                                                    │
+       │ 1. WebSocket.send({type: "offer"})               │
+       └──────────────────────────────────────┬───────────┘
+                                              │
+                               ┌──────────────▼─────────────┐
+                               │  UserSession (DO)          │
+                               │  (Memory only, no DB)      │
+                               │  Direct relay              │
+                               └──────────────────────────┘
+       │                                                    │
+       │                    2. Relay offer                 │
+       │ ◄──────────────────────────────────────────────── │
+       │                                                    │
+       │ 3. WebSocket.send({type: "answer"})              │
+       │ ──────────────────────────────────────────────► │
+       │                                                    │
+       │           4. ICE Candidates Exchange             │
+       │ ◄────────────────────────────────────────────►  │
+       │                                                    │
+       │ ════════════════════════════════════════════════  │
+       │           P2P Connection Established             │
+       │    (Media flows DIRECTLY between phones)         │
+       │    (Server is NOT involved after this point)     │
+       │ ════════════════════════════════════════════════  │
+```
+
+---
+
+### Connection Lifecycle
+
+#### 1. Connect
+```
+WebSocket Connection: wss://worker.dev/ws?userId=user123
+
+✓ User connects to WebSocket
+✓ Durable Object creates session for user123
+✓ UserSession instance persists across requests
+✓ Ready to send/receive messages
+```
+
+#### 2. Send Message
+```
+APK sends: {type: "message", targetId: "user456", message: {...}}
+
+✓ Durable Object receives message
+✓ INSERT into D1 database
+✓ Check if user456 is online
+✓ If online: WebSocket.send() to user456
+✓ If offline: Trigger FCM notification
+```
+
+#### 3. Receive Message
+```
+Durable Object relays message to user456's WebSocket
+
+✓ APK receives via WebSocket.stream.listen()
+✓ Parse JSON
+✓ Update UI (add to chat list)
+✓ (Optional) Mark as read: POST /api/messages/{id}/read
+```
+
+#### 4. Disconnect
+```
+User closes app or connection lost
+
+✓ WebSocket close event fires
+✓ Durable Object removes user from sessions
+✓ Other online users won't find this user
+```
+
 ---
 
 ## 🌐 ALL ENDPOINTS (COMPLETE LIST)
@@ -855,26 +1222,411 @@ Database Actions:
 3. UPDATE users SET followerCount = followerCount - 1 WHERE userId = followingId
 ```
 
-#### 10. Chat/Message
+#### 10. Messaging System - Conversations, Messages & Calls
 ```
-Endpoint: POST /api/chat/send
+Database Tables:
+- conversations: Group/private chats store
+- messages: Individual messages
+- conversation_members: Who is in which conversation
+- message_reads: Message read receipts
+- calls: Voice/video call records
+- call_participants: Who participated in calls
+```
+
+##### 10.1 CONVERSATIONS ENDPOINTS
+
+**CREATE CONVERSATION**
+```
+POST /api/conversations/create
 Content-Type: application/json
 
-Body:
+Request Body:
 {
-  "senderId": "user123",
-  "receiverId": "user456",
-  "text": "Hello! 👋"
+  "type": "private",           // "private" or "group"
+  "name": "Friends Group",     // For groups only
+  "image": "group_pic_url",    // For groups
+  "createdBy": "user123"
 }
 
 Response:
 {
-  "success": true,
-  "message": "Message sent"
+  "id": "conv_1713628800000",
+  "success": true
 }
 
 Database Action:
-- INSERT into chats table with timestamp
+- INSERT into conversations table
+- INSERT creator as 'admin' member
+```
+
+**GET USER CONVERSATIONS**
+```
+GET /api/conversations?userId=user123
+
+Response:
+[
+  {
+    "id": "conv_1713628800000",
+    "type": "group",
+    "name": "Friends Group",
+    "image": "url...",
+    "last_message_text": "See you soon! 👋",
+    "last_message_time": "2024-01-01T12:30:00Z",
+    "created_at": "2024-01-01T10:00:00Z"
+  },
+  ...
+]
+
+Database Action:
+- SELECT * FROM conversations JOIN conversation_members WHERE user_id = ? AND left_at IS NULL
+```
+
+**GET CONVERSATION DETAILS**
+```
+GET /api/conversations/conv_1713628800000
+
+Response:
+{
+  "id": "conv_1713628800000",
+  "type": "group",
+  "name": "Friends Group",
+  "image": "url...",
+  "last_message_id": "msg_123",
+  "created_by": "user123",
+  "created_at": "2024-01-01T10:00:00Z"
+}
+```
+
+**UPDATE CONVERSATION**
+```
+PUT /api/conversations/conv_1713628800000/update
+Content-Type: application/json
+
+Request Body:
+{
+  "name": "New Group Name",
+  "image": "new_image_url",
+  "lastMessageId": "msg_456",
+  "lastMessageText": "Latest message"
+}
+
+Response:
+{ "success": true }
+```
+
+**DELETE CONVERSATION**
+```
+DELETE /api/conversations/conv_1713628800000/delete
+
+Response:
+{ "success": true }
+
+Database Action:
+- DELETE FROM conversations WHERE id = ?
+```
+
+##### 10.2 MESSAGES ENDPOINTS
+
+**SEND MESSAGE**
+```
+POST /api/messages/send
+Content-Type: application/json
+
+Request Body:
+{
+  "conversationId": "conv_1713628800000",
+  "senderId": "user123",
+  "type": "text",              // "text", "image", "video", "audio"
+  "content": "Hello everyone! 👋",
+  "mediaUrl": "url_to_media",  // Optional
+  "thumbnailUrl": "url_to_thumb", // Optional
+  "parentId": "msg_123"        // For replies/threads
+}
+
+Response:
+{
+  "id": "msg_1713628900000",
+  "success": true
+}
+
+Database Actions:
+1. INSERT into messages
+2. UPDATE conversations SET last_message_id, last_message_text, updated_at
+```
+
+**GET CONVERSATION MESSAGES**
+```
+GET /api/messages/conv_1713628800000?limit=50&offset=0
+
+Response:
+[
+  {
+    "id": "msg_1713628900000",
+    "conversation_id": "conv_1713628800000",
+    "sender_id": "user123",
+    "type": "text",
+    "content": "Hello everyone! 👋",
+    "media_url": null,
+    "thumbnail_url": null,
+    "is_deleted": 0,
+    "created_at": "2024-01-01T12:30:00Z"
+  },
+  ...
+]
+
+Pagination:
+- limit: Number of messages (default 50, max 100)
+- offset: Skip messages (for scrolling)
+```
+
+**UPDATE MESSAGE**
+```
+PUT /api/messages/msg_1713628900000/update
+Content-Type: application/json
+
+Request Body:
+{
+  "content": "Updated message text"
+}
+
+Response:
+{ "success": true }
+```
+
+**DELETE MESSAGE**
+```
+DELETE /api/messages/msg_1713628900000/delete
+
+Response:
+{ "success": true }
+
+Database Action:
+- UPDATE messages SET is_deleted = 1 (soft delete)
+```
+
+**MARK MESSAGE AS READ**
+```
+POST /api/messages/msg_1713628900000/read
+Content-Type: application/json
+
+Request Body:
+{
+  "userId": "user456"
+}
+
+Response:
+{ "success": true }
+
+Database Action:
+- INSERT into message_reads with seen_at timestamp
+```
+
+**GET MESSAGE READ STATUS**
+```
+GET /api/messages/msg_1713628900000/reads
+
+Response:
+[
+  {
+    "id": "read_456",
+    "message_id": "msg_1713628900000",
+    "user_id": "user456",
+    "status": "seen",
+    "seen_at": "2024-01-01T12:35:00Z"
+  },
+  ...
+]
+```
+
+##### 10.3 CONVERSATION MEMBERS ENDPOINTS
+
+**ADD MEMBER**
+```
+POST /api/conversations/conv_1713628800000/members/add
+Content-Type: application/json
+
+Request Body:
+{
+  "userId": "user456",
+  "role": "member"  // "member", "admin", "moderator"
+}
+
+Response:
+{ "success": true }
+```
+
+**REMOVE MEMBER**
+```
+DELETE /api/conversations/conv_1713628800000/members/remove?userId=user456
+
+Response:
+{ "success": true }
+
+Database Action:
+- UPDATE conversation_members SET left_at = ? (soft delete)
+```
+
+**GET CONVERSATION MEMBERS**
+```
+GET /api/conversations/conv_1713628800000/members
+
+Response:
+[
+  {
+    "id": "member_123",
+    "conversation_id": "conv_1713628800000",
+    "user_id": "user123",
+    "role": "admin",
+    "joined_at": "2024-01-01T10:00:00Z",
+    "left_at": null
+  },
+  {
+    "id": "member_124",
+    "conversation_id": "conv_1713628800000",
+    "user_id": "user456",
+    "role": "member",
+    "joined_at": "2024-01-01T10:15:00Z",
+    "left_at": null
+  }
+]
+```
+
+##### 10.4 CALLING SYSTEM ENDPOINTS
+
+**START CALL**
+```
+POST /api/calls/start
+Content-Type: application/json
+
+Request Body:
+{
+  "conversationId": "conv_1713628800000",  // Optional
+  "callerId": "user123",
+  "callType": "voice",  // "voice" or "video"
+  "roomId": "room_abc123",
+  "sessionId": "session_xyz789"
+}
+
+Response:
+{
+  "id": "call_1713628900000",
+  "success": true
+}
+
+Database Actions:
+1. INSERT into calls (status = 'ringing')
+2. INSERT caller into call_participants
+```
+
+**GET CALL DETAILS**
+```
+GET /api/calls/call_1713628900000
+
+Response:
+{
+  "id": "call_1713628900000",
+  "conversation_id": "conv_1713628800000",
+  "caller_id": "user123",
+  "call_type": "voice",
+  "call_status": "ringing",     // "ringing", "answered", "ended", "missed"
+  "started_at": "2024-01-01T12:30:00Z",
+  "answered_at": "2024-01-01T12:30:05Z",
+  "ended_at": null,
+  "duration": null,
+  "room_id": "room_abc123",
+  "session_id": "session_xyz789"
+}
+```
+
+**UPDATE CALL STATUS**
+```
+PUT /api/calls/call_1713628900000/update
+Content-Type: application/json
+
+Request Body:
+{
+  "status": "answered",      // "ringing", "answered", "ended"
+  "answeredAt": "2024-01-01T12:30:05Z",
+  "endedAt": null,
+  "duration": null
+}
+
+Response:
+{ "success": true }
+```
+
+**END CALL**
+```
+POST /api/calls/call_1713628900000/end
+Content-Type: application/json
+
+Request Body:
+{
+  "duration": 240  // Call duration in seconds
+}
+
+Response:
+{ "success": true }
+
+Database Action:
+- UPDATE calls SET call_status = 'ended', ended_at = ?, duration = ?
+```
+
+##### 10.5 CALL PARTICIPANTS ENDPOINTS
+
+**JOIN CALL**
+```
+POST /api/calls/call_1713628900000/participants/join
+Content-Type: application/json
+
+Request Body:
+{
+  "userId": "user456"
+}
+
+Response:
+{ "success": true }
+
+Database Action:
+- INSERT into call_participants (role = 'participant', status = 'active')
+```
+
+**LEAVE CALL**
+```
+DELETE /api/calls/call_1713628900000/participants/leave?userId=user456
+
+Response:
+{ "success": true }
+
+Database Action:
+- UPDATE call_participants SET leave_time = ?, status = 'inactive'
+```
+
+**GET CALL PARTICIPANTS**
+```
+GET /api/calls/call_1713628900000/participants
+
+Response:
+[
+  {
+    "id": "part_123",
+    "call_id": "call_1713628900000",
+    "user_id": "user123",
+    "join_time": "2024-01-01T12:30:00Z",
+    "leave_time": "2024-01-01T12:34:00Z",
+    "role": "caller",
+    "status": "inactive"
+  },
+  {
+    "id": "part_124",
+    "call_id": "call_1713628900000",
+    "user_id": "user456",
+    "join_time": "2024-01-01T12:30:05Z",
+    "leave_time": null,
+    "role": "participant",
+    "status": "active"
+  }
+]
 ```
 
 ---
@@ -1197,6 +1949,351 @@ Already configured in wrangler.toml:
 | **Comment** | `/api/social/comment` | POST | Comment saved, count +1 |
 | **Save** | `/api/social/save` | POST | Post bookmarked |
 | **Follow** | `/api/social/follow` | POST | Follow relationship created |
+
+---
+
+## 📱 APK FLUTTER INTEGRATION GUIDE (Real-time Messaging)
+
+### Step 1: Add WebSocket Package
+```yaml
+# pubspec.yaml
+dependencies:
+  web_socket_channel: ^2.4.0
+  json_serializable: ^6.7.0
+```
+
+### Step 2: Initialize WebSocket Connection
+```dart
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'dart:convert';
+
+class ChatService {
+  late WebSocketChannel _channel;
+  final String userId;
+  final String baseUrl = "wss://talksyrareels-production.your-domain.workers.dev";
+  
+  ChatService({required this.userId});
+  
+  // Connect to WebSocket
+  void connect() {
+    final wsUrl = "$baseUrl/ws?userId=$userId";
+    
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      
+      // Listen for incoming messages
+      _channel.stream.listen(
+        (message) {
+          _handleIncomingMessage(message);
+        },
+        onError: (error) {
+          print("WebSocket Error: $error");
+          // Reconnect after delay
+          Future.delayed(Duration(seconds: 3), connect);
+        },
+        onDone: () {
+          print("WebSocket closed");
+          // Reconnect
+          Future.delayed(Duration(seconds: 3), connect);
+        },
+      );
+    } catch (e) {
+      print("Connection failed: $e");
+    }
+  }
+  
+  // Handle incoming messages
+  void _handleIncomingMessage(dynamic message) {
+    try {
+      final data = jsonDecode(message);
+      
+      switch(data['type']) {
+        case 'message':
+          _handleChatMessage(data);
+          break;
+        case 'offer':
+          _handleCallOffer(data);
+          break;
+        case 'answer':
+          _handleCallAnswer(data);
+          break;
+        case 'candidate':
+          _handleIceCandidate(data);
+          break;
+      }
+    } catch (e) {
+      print("Message parse error: $e");
+    }
+  }
+  
+  // Send chat message
+  void sendMessage({
+    required String conversationId,
+    required String senderId,
+    required String content,
+    String type = "text",
+    String? mediaUrl,
+  }) {
+    final message = {
+      "type": "message",
+      "targetId": "recipient_user_id", // Get from conversation
+      "conversationId": conversationId,
+      "senderId": senderId,
+      "message": {
+        "type": type,
+        "content": content,
+        "mediaUrl": mediaUrl,
+        "created_at": DateTime.now().toIso8601String(),
+      }
+    };
+    
+    _channel.sink.add(jsonEncode(message));
+  }
+  
+  // Handle incoming chat message
+  void _handleChatMessage(Map<String, dynamic> data) {
+    final conversationId = data['conversationId'];
+    final senderId = data['senderId'];
+    final message = data['message'];
+    
+    // Update UI
+    // Update chat list
+    // Save to local database
+    
+    // Mark as read
+    markMessageAsRead(data['messageId'], senderId);
+  }
+  
+  // Mark message as read (HTTP REST API)
+  Future<void> markMessageAsRead(String messageId, String userId) async {
+    try {
+      await http.post(
+        Uri.parse("https://talksyrareels-production.your-domain.workers.dev/api/messages/$messageId/read"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"userId": userId}),
+      );
+    } catch (e) {
+      print("Mark read error: $e");
+    }
+  }
+  
+  // Send WebRTC offer (initiate call)
+  void sendCallOffer({
+    required String targetId,
+    required String callerId,
+    required String callType, // "video" or "voice"
+    required dynamic sdp, // WebRTC SDP object
+  }) {
+    final offer = {
+      "type": "offer",
+      "targetId": targetId,
+      "callerId": callerId,
+      "callType": callType,
+      "offer": {
+        "type": "offer",
+        "sdp": sdp,
+      }
+    };
+    
+    _channel.sink.add(jsonEncode(offer));
+  }
+  
+  // Handle incoming call offer
+  void _handleCallOffer(Map<String, dynamic> data) {
+    final callerId = data['senderId'];
+    final offer = data['offer'];
+    final callType = data['callType'];
+    
+    // Show incoming call UI
+    // User can accept/reject
+  }
+  
+  // Send call answer
+  void sendCallAnswer({
+    required String targetId,
+    required String senderId,
+    required dynamic sdp, // WebRTC SDP object
+  }) {
+    final answer = {
+      "type": "answer",
+      "targetId": targetId,
+      "senderId": senderId,
+      "answer": {
+        "type": "answer",
+        "sdp": sdp,
+      }
+    };
+    
+    _channel.sink.add(jsonEncode(answer));
+  }
+  
+  // Handle incoming call answer
+  void _handleCallAnswer(Map<String, dynamic> data) {
+    final answer = data['answer'];
+    
+    // Update WebRTC peer connection
+    // Complete handshake
+  }
+  
+  // Send ICE candidate
+  void sendIceCandidate({
+    required String targetId,
+    required String senderId,
+    required dynamic candidate, // ICE candidate object
+  }) {
+    final candidateMsg = {
+      "type": "candidate",
+      "targetId": targetId,
+      "senderId": senderId,
+      "candidate": candidate,
+    };
+    
+    _channel.sink.add(jsonEncode(candidateMsg));
+  }
+  
+  // Handle incoming ICE candidate
+  void _handleIceCandidate(Map<String, dynamic> data) {
+    final candidate = data['candidate'];
+    
+    // Add ICE candidate to WebRTC peer connection
+  }
+  
+  // Disconnect
+  void disconnect() {
+    _channel.sink.close();
+  }
+}
+```
+
+### Step 3: Use in Your App
+```dart
+class ChatScreen extends StatefulWidget {
+  final String userId;
+  final String conversationId;
+  
+  @override
+  _ChatScreenState createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  late ChatService _chatService;
+  final TextEditingController _messageController = TextEditingController();
+  
+  @override
+  void initState() {
+    super.initState();
+    _chatService = ChatService(userId: widget.userId);
+    _chatService.connect(); // Connect to WebSocket
+  }
+  
+  @override
+  void dispose() {
+    _chatService.disconnect();
+    _messageController.dispose();
+    super.dispose();
+  }
+  
+  void _sendMessage() {
+    if (_messageController.text.isNotEmpty) {
+      _chatService.sendMessage(
+        conversationId: widget.conversationId,
+        senderId: widget.userId,
+        content: _messageController.text,
+      );
+      
+      _messageController.clear();
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("Chat")),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              // Build chat messages
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: "Type a message...",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _sendMessage,
+                  child: Text("Send"),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### Step 4: WebRTC Setup (for Calls)
+```dart
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+
+class CallService {
+  late RTCPeerConnection _peerConnection;
+  late ChatService _chatService;
+  
+  Future<void> initializeCall(String callerId, String receiverId, String callType) async {
+    // Create peer connection
+    _peerConnection = await createPeerConnection({
+      'iceServers': [
+        {'urls': ['stun:stun.l.google.com:19302']}
+      ]
+    });
+    
+    // Handle ICE candidates
+    _peerConnection.onIceCandidate = (RTCIceCandidate candidate) {
+      _chatService.sendIceCandidate(
+        targetId: receiverId,
+        senderId: callerId,
+        candidate: candidate.toMap(),
+      );
+    };
+    
+    // Get local stream
+    final mediaStream = await navigator.mediaDevices.getUserMedia({
+      'video': callType == "video",
+      'audio': true,
+    });
+    
+    // Add tracks to peer connection
+    mediaStream.getTracks().forEach((track) {
+      _peerConnection.addTrack(track, mediaStream);
+    });
+    
+    // Create offer
+    final offer = await _peerConnection.createOffer();
+    await _peerConnection.setLocalDescription(offer);
+    
+    // Send offer via WebSocket
+    _chatService.sendCallOffer(
+      targetId: receiverId,
+      callerId: callerId,
+      callType: callType,
+      sdp: offer.toMap(),
+    );
+  }
+}
+```
 
 ---
 

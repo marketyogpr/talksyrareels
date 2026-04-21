@@ -2,21 +2,40 @@
  * PROJECT: SHORTSTALKSYRA
  * COMPONENT: Cloudflare Worker REST API
  * DATABASE: D1 | STORAGE: R2
+ * 
+ * Features:
+ * 1. REST API - HTTP requests (posts, user, social, etc.)
+ * 2. WebSocket - Real-time messaging aur P2P signaling
+ * 3. Durable Objects - User session management aur routing
  *
  * Ye code apk se aane wale HTTP requests ko handle karta hai.
  * Har section ke upar comment diya gaya hai ki yeh kiska code hai.
  */
+
+import Database from "./database/db.js";
+import { UserSession } from "./durable-objects/user-session.js";
+
+export { UserSession };
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const method = request.method;
 
+    // ===================================================================
+    // WEBSOCKET HANDLER - Real-time messaging aur P2P signaling
+    // ===================================================================
+    if (url.protocol === "ws:" || url.protocol === "wss:") {
+      return await handleWebSocket(request, env, url);
+    }
+
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
+
+    const db = new Database(env);
 
     const publicUrl = env.R2_PUBLIC_URL || "https://buyviro.com";
     const defaultProfilePicUrl = `${publicUrl}/defaults/profile.png`;
@@ -707,9 +726,354 @@ export default {
         return new Response("Sent", { headers: corsHeaders });
       }
 
+      // ===================================================================
+      // MESSAGING SYSTEM - Conversations, Messages, Members
+      // ===================================================================
+
+      // CREATE CONVERSATION: naya chat group banao
+      if (url.pathname === "/api/conversations/create" && method === "POST") {
+        const data = await request.json();
+        const conversationId = `conv_${Date.now()}`;
+        
+        await db.createConversation(
+          conversationId,
+          data.type, // "private" ya "group"
+          data.name || null,
+          data.image || null,
+          data.createdBy
+        );
+
+        // Creator ko member banao
+        await db.addMember(`member_${Date.now()}`, conversationId, data.createdBy, "admin");
+
+        return new Response(JSON.stringify({ id: conversationId, success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET CONVERSATION: specific conversation ki details
+      if (url.pathname.match(/^\/api\/conversations\/[^/]+$/) && method === "GET") {
+        const conversationId = url.pathname.split("/")[3];
+        const conversation = await db.getConversation(conversationId);
+
+        if (!conversation) {
+          return new Response(JSON.stringify({ error: "Conversation not found" }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify(conversation), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET USER CONVERSATIONS: user ke sab conversations
+      if (url.pathname === "/api/conversations" && method === "GET") {
+        const userId = url.searchParams.get("userId");
+        const conversations = await db.getUserConversations(userId);
+
+        return new Response(JSON.stringify(conversations), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // UPDATE CONVERSATION: conversation ko edit karo
+      if (url.pathname.match(/^\/api\/conversations\/[^/]+\/update$/) && method === "PUT") {
+        const conversationId = url.pathname.split("/")[3];
+        const data = await request.json();
+
+        const updates = {};
+        if (data.name) updates.name = data.name;
+        if (data.image) updates.image = data.image;
+        if (data.lastMessageId) updates.last_message_id = data.lastMessageId;
+        if (data.lastMessageText) updates.last_message_text = data.lastMessageText;
+
+        await db.updateConversation(conversationId, updates);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // DELETE CONVERSATION: conversation ko delete karo
+      if (url.pathname.match(/^\/api\/conversations\/[^/]+\/delete$/) && method === "DELETE") {
+        const conversationId = url.pathname.split("/")[3];
+        await db.deleteConversation(conversationId);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== MESSAGES =====
+
+      // SEND MESSAGE: naya message bhejo
+      if (url.pathname === "/api/messages/send" && method === "POST") {
+        const data = await request.json();
+        const messageId = `msg_${Date.now()}`;
+
+        await db.sendMessage(
+          messageId,
+          data.conversationId,
+          data.senderId,
+          data.type || "text", // "text", "image", "video", "audio"
+          data.content || "",
+          data.mediaUrl || null,
+          data.thumbnailUrl || null,
+          data.parentId || null
+        );
+
+        // Update conversation's last message
+        await db.updateConversation(data.conversationId, {
+          last_message_id: messageId,
+          last_message_text: data.content || "",
+          last_message_time: new Date().toISOString(),
+        });
+
+        return new Response(JSON.stringify({ id: messageId, success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET MESSAGES: conversation ke sab messages
+      if (url.pathname.match(/^\/api\/messages\/[^/]+$/) && method === "GET") {
+        const conversationId = url.pathname.split("/")[3];
+        const limit = parseInt(url.searchParams.get("limit")) || 50;
+        const offset = parseInt(url.searchParams.get("offset")) || 0;
+
+        const messages = await db.getConversationMessages(conversationId, limit, offset);
+
+        return new Response(JSON.stringify(messages), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // UPDATE MESSAGE: message ko edit karo
+      if (url.pathname.match(/^\/api\/messages\/[^/]+\/update$/) && method === "PUT") {
+        const messageId = url.pathname.split("/")[3];
+        const data = await request.json();
+
+        await db.updateMessage(messageId, data.content);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // DELETE MESSAGE: message ko delete karo
+      if (url.pathname.match(/^\/api\/messages\/[^/]+\/delete$/) && method === "DELETE") {
+        const messageId = url.pathname.split("/")[3];
+        await db.deleteMessage(messageId);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // MARK MESSAGE AS READ: message ko read mark karo
+      if (url.pathname.match(/^\/api\/messages\/[^/]+\/read$/) && method === "POST") {
+        const messageId = url.pathname.split("/")[3];
+        const data = await request.json();
+        const readId = `read_${Date.now()}`;
+
+        await db.markMessageAsRead(readId, messageId, data.userId);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET MESSAGE READ STATUS: kaun ne message padha
+      if (url.pathname.match(/^\/api\/messages\/[^/]+\/reads$/) && method === "GET") {
+        const messageId = url.pathname.split("/")[3];
+        const reads = await db.getMessageReadStatus(messageId);
+
+        return new Response(JSON.stringify(reads), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== CONVERSATION MEMBERS =====
+
+      // ADD MEMBER: conversation me user ko add karo
+      if (url.pathname.match(/^\/api\/conversations\/[^/]+\/members\/add$/) && method === "POST") {
+        const conversationId = url.pathname.split("/")[3];
+        const data = await request.json();
+        const memberId = `member_${Date.now()}`;
+
+        await db.addMember(memberId, conversationId, data.userId, data.role || "member");
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // REMOVE MEMBER: conversation se user ko nikal do
+      if (url.pathname.match(/^\/api\/conversations\/[^/]+\/members\/remove$/) && method === "DELETE") {
+        const conversationId = url.pathname.split("/")[3];
+        const userId = url.searchParams.get("userId");
+
+        await db.removeMember(conversationId, userId);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET MEMBERS: conversation ke sab members
+      if (url.pathname.match(/^\/api\/conversations\/[^/]+\/members$/) && method === "GET") {
+        const conversationId = url.pathname.split("/")[3];
+        const members = await db.getConversationMembers(conversationId);
+
+        return new Response(JSON.stringify(members), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===================================================================
+      // CALLING SYSTEM - Voice/Video Calls
+      // ===================================================================
+
+      // START CALL: naya call start karo
+      if (url.pathname === "/api/calls/start" && method === "POST") {
+        const data = await request.json();
+        const callId = `call_${Date.now()}`;
+
+        await db.startCall(
+          callId,
+          data.conversationId || null,
+          data.callerId,
+          data.callType, // "voice" ya "video"
+          data.roomId,
+          data.sessionId
+        );
+
+        // Caller ko participant banao
+        await db.addCallParticipant(`part_${Date.now()}`, callId, data.callerId, "caller");
+
+        return new Response(JSON.stringify({ id: callId, success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET CALL DETAILS: call ki details
+      if (url.pathname.match(/^\/api\/calls\/[^/]+$/) && method === "GET") {
+        const callId = url.pathname.split("/")[3];
+        const call = await db.getCall(callId);
+
+        if (!call) {
+          return new Response(JSON.stringify({ error: "Call not found" }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(JSON.stringify(call), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // UPDATE CALL STATUS: call ka status change karo (answered, ended, etc.)
+      if (url.pathname.match(/^\/api\/calls\/[^/]+\/update$/) && method === "PUT") {
+        const callId = url.pathname.split("/")[3];
+        const data = await request.json();
+
+        await db.updateCallStatus(
+          callId,
+          data.status, // "ringing", "answered", "ended"
+          data.answeredAt || null,
+          data.endedAt || null,
+          data.duration || null
+        );
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // END CALL: call ko end karo
+      if (url.pathname.match(/^\/api\/calls\/[^/]+\/end$/) && method === "POST") {
+        const callId = url.pathname.split("/")[3];
+        const data = await request.json();
+
+        const duration = data.duration || 0;
+        await db.updateCallStatus(callId, "ended", null, new Date().toISOString(), duration);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== CALL PARTICIPANTS =====
+
+      // JOIN CALL: call me user ko add karo
+      if (url.pathname.match(/^\/api\/calls\/[^/]+\/participants\/join$/) && method === "POST") {
+        const callId = url.pathname.split("/")[3];
+        const data = await request.json();
+        const participantId = `part_${Date.now()}`;
+
+        await db.addCallParticipant(participantId, callId, data.userId, "participant");
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // LEAVE CALL: call se user ko nikal do
+      if (url.pathname.match(/^\/api\/calls\/[^/]+\/participants\/leave$/) && method === "DELETE") {
+        const callId = url.pathname.split("/")[3];
+        const userId = url.searchParams.get("userId");
+
+        await db.removeCallParticipant(callId, userId);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET CALL PARTICIPANTS: call ke sab participants
+      if (url.pathname.match(/^\/api\/calls\/[^/]+\/participants$/) && method === "GET") {
+        const callId = url.pathname.split("/")[3];
+        const participants = await db.getCallParticipants(callId);
+
+        return new Response(JSON.stringify(participants), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       return new Response("Endpoint Not Found", { status: 404, headers: corsHeaders });
     } catch (err) {
       return new Response("Database Error: " + err.message, { status: 500, headers: corsHeaders });
     }
   },
 };
+
+// ===================================================================
+// WEBSOCKET HANDLER - Real-time messaging aur P2P signaling
+// ===================================================================
+async function handleWebSocket(request, env, url) {
+  // Extract userId from query params
+  const userId = url.searchParams.get("userId");
+  
+  if (!userId) {
+    return new Response("userId required", { status: 400 });
+  }
+
+  // Get Durable Object stub for this user
+  const id = env.USER_SESSION.idFromName(userId);
+  const stub = env.USER_SESSION.get(id);
+
+  // Create WebSocket pair
+  const webSocketPair = new WebSocketPair();
+  const [client, server] = Object.values(webSocketPair);
+
+  // Send server end to Durable Object to manage the connection
+  await stub.handleConnection(server, userId);
+
+  // Return client end to APK
+  return new Response(null, { 
+    status: 101, 
+    webSocket: client 
+  });
+}

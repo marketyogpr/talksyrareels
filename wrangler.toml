@@ -14,3 +14,13 @@ database_id = "e5c60c09-bbc6-474f-a8f5-e6f279474b41"     # अपनी D1 ID �
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "socialapkvideos" # अपना R2 नाम यहाँ लिखें
+
+# Durable Objects Binding - User Sessions
+[[durable_objects.bindings]]
+name = "USER_SESSION"
+class_name = "UserSession"
+
+# Durable Objects Migration
+[[migrations]]
+tag = "v1"
+new_classes = ["UserSession"]
