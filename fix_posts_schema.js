@@ -58,9 +58,9 @@ export default {
           if (backupCheck.count > 0) {
             await env.DB.prepare(`
               INSERT INTO posts (id, user_id, type, caption, visibility, like_count, comment_count, share_count, view_count, created_at, updated_at)
-              SELECT postId, user_id, type, caption, visibility, like_count, comment_count, share_count, view_count, created_at, updated_at
+              SELECT id, user_id, type, caption, visibility, like_count, comment_count, share_count, view_count, created_at, updated_at
               FROM posts_backup
-              WHERE postId IS NOT NULL
+              WHERE id IS NOT NULL
             `).run();
             console.log("✅ Data migrated from backup");
           }
