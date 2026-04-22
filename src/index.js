@@ -55,6 +55,51 @@ export default {
       // USER SYSTEM (Existing - Keep as is for backward compatibility)
       // ===================================================================
 
+      // Register User
+      if (url.pathname === "/api/user/register" && method === "POST") {
+        const form = await request.formData();
+        const userId = form.get("userId");
+        const username = form.get("username")?.toLowerCase().replace(/\s+/g, "") || "";
+        const fullName = form.get("fullName") || "";
+        const birthDate = form.get("birthDate") || null;
+        const password = form.get("password") || "";
+        const email = form.get("email") || "";
+        const profilePic = form.get("profilePic");
+
+        let profilePicUrl = defaultProfilePicUrl;
+        if (profilePic && profilePic.size > 0) {
+          const fileName = `profiles/${userId}_${Date.now()}.jpg`;
+          await env.BUCKET.put(fileName, profilePic.stream());
+          profilePicUrl = `${publicUrl}/${fileName}`;
+        }
+
+        await env.DB.prepare(
+          `INSERT INTO users (
+             userId, username, fullName, birthDate, password, email,
+             profilePicUrl, coverPicUrl, bio, location, website,
+             followerCount, followingCount, postCount, coinBalance,
+             isVerified, isPremiumVerified, isPrivate, isGhostMode, createdAt
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, ?)`
+        )
+          .bind(
+            userId,
+            username,
+            fullName,
+            birthDate,
+            password,
+            email,
+            profilePicUrl,
+            "",
+            "",
+            "",
+            "",
+            new Date().toISOString()
+          )
+          .run();
+
+        return new Response(JSON.stringify({ success: true, message: "User Registered" }), { headers: corsHeaders });
+      }
+
       // Login User
       if (url.pathname === "/api/user/login" && method === "POST") {
         const form = await request.formData();

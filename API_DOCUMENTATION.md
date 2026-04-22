@@ -4,14 +4,74 @@
 ---
 
 ## 📖 TABLE OF CONTENTS
-1. [Posts & Reels](#posts--reels)
-2. [Stories](#stories)
-3. [Groups](#groups)
-4. [Thoughts](#thoughts)
-5. [Polls](#polls)
-6. [Notifications](#notifications)
-7. [Messages & Conversations](#messages--conversations)
-8. [Calls](#calls)
+1. [User System](#user-system)
+2. [Posts & Reels](#posts--reels)
+3. [Stories](#stories)
+4. [Groups](#groups)
+5. [Thoughts](#thoughts)
+6. [Polls](#polls)
+7. [Notifications](#notifications)
+8. [Messages & Conversations](#messages--conversations)
+9. [Calls](#calls)
+
+---
+
+## 👥 USER SYSTEM
+
+### Register User
+```
+POST /api/user/register
+Content-Type: multipart/form-data
+
+Parameters:
+  - userId (TEXT, REQUIRED) - Unique user ID
+  - username (TEXT, REQUIRED) - Username (lowercase, no spaces)
+  - fullName (TEXT) - User's full name
+  - email (TEXT) - Email address
+  - password (TEXT, REQUIRED) - User password
+  - birthDate (TEXT) - Date of birth
+  - profilePic (FILE) - Profile picture
+
+Response:
+{
+  "success": true,
+  "message": "User Registered"
+}
+```
+
+### Login User
+```
+POST /api/user/login
+Content-Type: multipart/form-data
+
+Parameters:
+  - username (TEXT) - Username or email
+  - password (TEXT) - Password
+
+Response:
+{
+  "userId": "user123",
+  "username": "john_doe",
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "profilePic": "https://...",
+  "isVerified": 0,
+  ...
+}
+```
+
+### Check User Profile
+```
+GET /api/user/check?userId=user123
+
+Response:
+{
+  "userId": "user123",
+  "username": "john_doe",
+  "fullName": "John Doe",
+  ...
+}
+```
 
 ---
 
