@@ -145,11 +145,39 @@ export default {
         const type = form.get("type") || "post"; // post, reel, story
         const caption = form.get("caption") || "";
         const visibility = form.get("visibility") || "public";
+        const location = form.get("location");
+        const hashtags = form.get("hashtags");
+        const mentions = form.get("mentions");
+        const allow_comments = form.get("allow_comments") ? parseInt(form.get("allow_comments")) : 1;
+        const allow_shares = form.get("allow_shares") ? parseInt(form.get("allow_shares")) : 1;
+        const is_pinned = form.get("is_pinned") ? parseInt(form.get("is_pinned")) : 0;
+        const is_featured = form.get("is_featured") ? parseInt(form.get("is_featured")) : 0;
+        const language = form.get("language");
+        const content_warning = form.get("content_warning");
+        const scheduled_at = form.get("scheduled_at");
+        const expires_at = form.get("expires_at");
 
         const postId = generateId();
 
-        // Create post record
-        await db.createPost(postId, userId, type, caption, visibility);
+        // Create post record with all new fields
+        await db.createPost({
+          id: postId,
+          user_id: userId,
+          type,
+          caption,
+          visibility,
+          location,
+          hashtags,
+          mentions,
+          allow_comments,
+          allow_shares,
+          is_pinned,
+          is_featured,
+          language,
+          content_warning,
+          scheduled_at,
+          expires_at
+        });
 
         // If there's a video/image, create reel record
         const videoFile = form.get("video");
@@ -224,10 +252,28 @@ export default {
       if (url.pathname === "/api/posts/update" && method === "POST") {
         const form = await request.formData();
         const postId = form.get("postId");
-        const caption = form.get("caption");
-        const visibility = form.get("visibility");
 
-        await db.updatePost(postId, caption, visibility);
+        // Collect all possible update fields
+        const updates = {};
+        const fields = [
+          'caption', 'visibility', 'location', 'hashtags', 'mentions',
+          'allow_comments', 'allow_shares', 'is_pinned', 'is_featured',
+          'language', 'content_warning', 'scheduled_at', 'expires_at'
+        ];
+
+        fields.forEach(field => {
+          const value = form.get(field);
+          if (value !== null && value !== undefined && value !== '') {
+            // Convert numeric fields
+            if (['allow_comments', 'allow_shares', 'is_pinned', 'is_featured'].includes(field)) {
+              updates[field] = parseInt(value);
+            } else {
+              updates[field] = value;
+            }
+          }
+        });
+
+        await db.updatePost(postId, updates);
 
         return new Response(
           JSON.stringify({ success: true, message: "Post updated" }),

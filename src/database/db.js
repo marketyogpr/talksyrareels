@@ -10,13 +10,43 @@ export class Database {
   }
 
   // ==================== POSTS TABLE ====================
-  async createPost(id, userId, type, caption, visibility = 'public') {
+  async createPost(postData) {
+    const {
+      id,
+      user_id,
+      type = 'post',
+      caption,
+      visibility = 'public',
+      location,
+      hashtags,
+      mentions,
+      allow_comments = 1,
+      allow_shares = 1,
+      is_pinned = 0,
+      is_featured = 0,
+      language,
+      content_warning,
+      scheduled_at,
+      expires_at
+    } = postData;
+
+    const currentTime = new Date().toISOString();
+
     return this.db
       .prepare(
-        `INSERT INTO posts (id, user_id, type, caption, visibility, like_count, comment_count, share_count, view_count, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)`
+        `INSERT INTO posts (
+          id, user_id, type, caption, visibility, location, hashtags, mentions,
+          allow_comments, allow_shares, is_pinned, is_featured, language,
+          content_warning, scheduled_at, expires_at,
+          like_count, comment_count, share_count, view_count, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?)`
       )
-      .bind(id, userId, type, caption, visibility, new Date().toISOString(), new Date().toISOString())
+      .bind(
+        id, user_id, type, caption, visibility, location, hashtags, mentions,
+        allow_comments, allow_shares, is_pinned, is_featured, language,
+        content_warning, scheduled_at, expires_at,
+        currentTime, currentTime
+      )
       .run();
   }
 
@@ -47,13 +77,83 @@ export class Database {
     return results;
   }
 
-  async updatePost(postId, caption, visibility) {
-    return this.db
-      .prepare(
-        `UPDATE posts SET caption = ?, visibility = ?, updated_at = ? WHERE id = ?`
-      )
-      .bind(caption, visibility, new Date().toISOString(), postId)
-      .run();
+  async updatePost(postId, updates) {
+    const updateFields = [];
+    const values = [];
+    const currentTime = new Date().toISOString();
+
+    // Build dynamic update query based on provided fields
+    if (updates.caption !== undefined) {
+      updateFields.push('caption = ?');
+      values.push(updates.caption);
+    }
+    if (updates.visibility !== undefined) {
+      updateFields.push('visibility = ?');
+      values.push(updates.visibility);
+    }
+    if (updates.location !== undefined) {
+      updateFields.push('location = ?');
+      values.push(updates.location);
+    }
+    if (updates.hashtags !== undefined) {
+      updateFields.push('hashtags = ?');
+      values.push(updates.hashtags);
+    }
+    if (updates.mentions !== undefined) {
+      updateFields.push('mentions = ?');
+      values.push(updates.mentions);
+    }
+    if (updates.allow_comments !== undefined) {
+      updateFields.push('allow_comments = ?');
+      values.push(updates.allow_comments);
+    }
+    if (updates.allow_shares !== undefined) {
+      updateFields.push('allow_shares = ?');
+      values.push(updates.allow_shares);
+    }
+    if (updates.is_pinned !== undefined) {
+      updateFields.push('is_pinned = ?');
+      values.push(updates.is_pinned);
+    }
+    if (updates.is_featured !== undefined) {
+      updateFields.push('is_featured = ?');
+      values.push(updates.is_featured);
+    }
+    if (updates.language !== undefined) {
+      updateFields.push('language = ?');
+      values.push(updates.language);
+    }
+    if (updates.content_warning !== undefined) {
+      updateFields.push('content_warning = ?');
+      values.push(updates.content_warning);
+    }
+    if (updates.scheduled_at !== undefined) {
+      updateFields.push('scheduled_at = ?');
+      values.push(updates.scheduled_at);
+    }
+    if (updates.expires_at !== undefined) {
+      updateFields.push('expires_at = ?');
+      values.push(updates.expires_at);
+    }
+    if (updates.edited_at !== undefined) {
+      updateFields.push('edited_at = ?');
+      values.push(updates.edited_at);
+    } else {
+      // If not explicitly set, update edited_at when post is modified
+      updateFields.push('edited_at = ?');
+      values.push(currentTime);
+    }
+
+    // Always update the updated_at timestamp
+    updateFields.push('updated_at = ?');
+    values.push(currentTime);
+
+    // Add the WHERE clause
+    values.push(postId);
+
+    const sql = `UPDATE posts SET ${updateFields.join(', ')} WHERE id = ?`;
+
+    return this.db.prepare(sql).bind(...values).run();
   }
 
   async deletePost(postId) {

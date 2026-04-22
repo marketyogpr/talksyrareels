@@ -87,6 +87,17 @@ Parameters:
   - type (TEXT) - 'post', 'reel', or 'story' (default: 'post')
   - caption (TEXT) - Post caption/description
   - visibility (TEXT) - 'public' or 'private' (default: 'public')
+  - location (TEXT) - Location name/tag
+  - hashtags (TEXT) - Hashtags (JSON array or comma-separated)
+  - mentions (TEXT) - Mentioned user IDs (JSON array)
+  - allow_comments (INTEGER) - Allow comments (1=yes, 0=no, default: 1)
+  - allow_shares (INTEGER) - Allow shares (1=yes, 0=no, default: 1)
+  - is_pinned (INTEGER) - Pin this post (1=yes, 0=no, default: 0)
+  - is_featured (INTEGER) - Feature this post (1=yes, 0=no, default: 0)
+  - language (TEXT) - Content language code (en, hi, etc.)
+  - content_warning (TEXT) - Sensitive content warning
+  - scheduled_at (TEXT) - Schedule post for later (ISO timestamp)
+  - expires_at (TEXT) - Auto-expire post (ISO timestamp)
   - video (FILE) - Video file for reels
   - duration (FLOAT) - Video duration in seconds
   - width (INTEGER) - Video width
@@ -183,6 +194,17 @@ Parameters:
   - postId (TEXT, REQUIRED)
   - caption (TEXT)
   - visibility (TEXT)
+  - location (TEXT)
+  - hashtags (TEXT)
+  - mentions (TEXT)
+  - allow_comments (INTEGER)
+  - allow_shares (INTEGER)
+  - is_pinned (INTEGER)
+  - is_featured (INTEGER)
+  - language (TEXT)
+  - content_warning (TEXT)
+  - scheduled_at (TEXT)
+  - expires_at (TEXT)
 
 Response:
 {
@@ -643,6 +665,22 @@ Response:
 - type TEXT NOT NULL ('post', 'reel', 'story')
 - caption TEXT
 - visibility TEXT DEFAULT 'public'
+- location TEXT
+- hashtags TEXT (JSON array or comma-separated)
+- mentions TEXT (JSON array of user IDs)
+- allow_comments INTEGER DEFAULT 1
+- allow_shares INTEGER DEFAULT 1
+- is_pinned INTEGER DEFAULT 0
+- is_featured INTEGER DEFAULT 0
+- language TEXT
+- content_warning TEXT
+- scheduled_at TEXT
+- expires_at TEXT
+- edited_at TEXT
+- is_deleted INTEGER DEFAULT 0
+- delete_reason TEXT
+- moderation_status TEXT DEFAULT 'approved'
+- moderation_reason TEXT
 - like_count INTEGER DEFAULT 0
 - comment_count INTEGER DEFAULT 0
 - share_count INTEGER DEFAULT 0
