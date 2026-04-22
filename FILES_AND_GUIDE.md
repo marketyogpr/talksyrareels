@@ -56,6 +56,7 @@ scripts/
 📖 DATABASE_COMPLETE.md               ← Complete reference
 
 📖 SETUP_COMPLETE.md                  ← Initial setup summary
+📖 UUID_IMPLEMENTATION.md             ← UUID in all tables ✨ NEW
 ```
 
 ---

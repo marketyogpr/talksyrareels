@@ -16,7 +16,8 @@ import { UserSession } from "./durable-objects/user-session.js";
 
 export { UserSession };
 
-const generateId = () => `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+// Generate UUID v4 for unique IDs - guaranteed uniqueness across all tables
+const generateId = () => crypto.randomUUID();
 
 export default {
   async fetch(request, env) {
