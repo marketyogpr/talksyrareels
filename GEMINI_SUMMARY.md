@@ -75,45 +75,189 @@ CREATE TABLE users (
 );
 ```
 
-### TABLE 2: `posts` ⭐ (MAIN TABLE)
+### TABLE 2: `posts` ⭐ (MAIN TABLE - NEW STRUCTURE)
 ```sql
-CREATE TABLE posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    postId TEXT UNIQUE NOT NULL,
-    userId TEXT NOT NULL,
-    username TEXT,
-    userImage TEXT,
-    isVerified INTEGER DEFAULT 0,
-    type TEXT NOT NULL,           -- 'post', 'reel', 'story'
-    content TEXT,                 -- Caption/text
-    mediaUrl TEXT,                -- R2 URL
-    thumbnailUrl TEXT,            -- Preview image
-    metadata TEXT,                -- JSON string
-    tags TEXT,                    -- Comma-separated
-    language TEXT DEFAULT 'en',
-    likeCount INTEGER DEFAULT 0,
-    commentCount INTEGER DEFAULT 0,
-    repostCount INTEGER DEFAULT 0,
-    viewsCount INTEGER DEFAULT 0,
-    saveCount INTEGER DEFAULT 0,
-    clickCount INTEGER DEFAULT 0,
-    locationName TEXT,
-    lat REAL,
-    lng REAL,
-    aspectRatio REAL DEFAULT 1.0,
-    duration REAL DEFAULT 0,      -- Video duration
-    fileSize INTEGER,
-    status TEXT DEFAULT 'active',
-    isNsfw INTEGER DEFAULT 0,
-    allowComments INTEGER DEFAULT 1,
+CREATE TABLE IF NOT EXISTS posts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    caption TEXT,
     visibility TEXT DEFAULT 'public',
-    isPromoted INTEGER DEFAULT 0,
-    adLink TEXT,
-    coinReward INTEGER DEFAULT 0,
-    timestamp TEXT NOT NULL,
-    updatedAt TEXT,
-    FOREIGN KEY (userId) REFERENCES users(userId)
+    like_count INTEGER DEFAULT 0,
+    comment_count INTEGER DEFAULT 0,
+    share_count INTEGER DEFAULT 0,
+    view_count INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+```
+
+### TABLE 2B: `reels` ⭐ (NEW TABLE - LINKED TO POSTS)
+```sql
+CREATE TABLE IF NOT EXISTS reels (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    video_url TEXT NOT NULL,
+    thumbnail_url TEXT,
+    duration REAL,
+    width INTEGER,
+    height INTEGER,
+    audio_name TEXT,
+    audio_url TEXT,
+    view_count INTEGER DEFAULT 0,
+    like_count INTEGER DEFAULT 0,
+    comment_count INTEGER DEFAULT 0,
+    share_count INTEGER DEFAULT 0,
+    is_monetized INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_reels_post ON reels(post_id);
+```
+
+### TABLE 2C: `groups` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    image TEXT,
+    created_by TEXT NOT NULL,
+    is_private INTEGER DEFAULT 0,
+    member_count INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_creator ON groups(created_by);
+```
+
+### TABLE 2D: `group_members` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS group_members (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT DEFAULT 'member',
+    status TEXT DEFAULT 'active',
+    joined_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    left_at TEXT,
+    UNIQUE(group_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user ON group_members(user_id);
+```
+
+### TABLE 2E: `group_invites` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS group_invites (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_invites_receiver ON group_invites(receiver_id);
+```
+
+### TABLE 2F: `group_posts` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS group_posts (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    post_id TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### TABLE 2G: `thoughts` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS thoughts (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    reply_count INTEGER DEFAULT 0,
+    like_count INTEGER DEFAULT 0,
+    repost_count INTEGER DEFAULT 0,
+    view_count INTEGER DEFAULT 0,
+    is_edited INTEGER DEFAULT 0,
+    is_deleted INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_thought_post ON thoughts(post_id);
+CREATE INDEX IF NOT EXISTS idx_thought_time ON thoughts(created_at);
+```
+
+### TABLE 2H: `thought_reposts` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS thought_reposts (
+    id TEXT PRIMARY KEY,
+    thought_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(thought_id, user_id)
+);
+```
+
+### TABLE 2I: `thought_replies` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS thought_replies (
+    id TEXT PRIMARY KEY,
+    thought_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    parent_id TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_replies_thought ON thought_replies(thought_id);
+```
+
+### TABLE 2J: `polls` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS polls (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    total_votes INTEGER DEFAULT 0,
+    expires_at TEXT,
+    is_multiple INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_poll_post ON polls(post_id);
+```
+
+### TABLE 2K: `poll_options` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS poll_options (
+    id TEXT PRIMARY KEY,
+    poll_id TEXT NOT NULL,
+    option_text TEXT NOT NULL,
+    vote_count INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_option_poll ON poll_options(poll_id);
+```
+
+### TABLE 2L: `poll_votes` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS poll_votes (
+    id TEXT PRIMARY KEY,
+    poll_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    option_id TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(poll_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_votes_poll ON poll_votes(poll_id);
 ```
 
 ### TABLE 3: `comments`
@@ -222,21 +366,17 @@ CREATE TABLE hashtags (
 );
 ```
 
-### TABLE 10: `notifications`
+### TABLE 10: `notifications` ⭐ (UPDATED STRUCTURE)
 ```sql
-CREATE TABLE notifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    notificationId TEXT UNIQUE NOT NULL,
-    userId TEXT NOT NULL,
-    senderId TEXT,
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    actor_id TEXT,
     type TEXT NOT NULL,
-    postId TEXT,
-    content TEXT,
-    isRead INTEGER DEFAULT 0,
-    timestamp TEXT NOT NULL,
-    FOREIGN KEY (userId) REFERENCES users(userId),
-    FOREIGN KEY (senderId) REFERENCES users(userId),
-    FOREIGN KEY (postId) REFERENCES posts(postId)
+    entity_id TEXT,
+    text TEXT,
+    is_read INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -335,6 +475,66 @@ CREATE TABLE call_participants (
     status TEXT,                      -- "active", "inactive"
     FOREIGN KEY (call_id) REFERENCES calls(id),
     FOREIGN KEY (user_id) REFERENCES users(userId)
+);
+```
+
+### TABLE 17: `stories` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS stories (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    media_url TEXT NOT NULL,
+    media_type TEXT,
+    thumbnail_url TEXT,
+    duration REAL,
+    caption TEXT,
+    view_count INTEGER DEFAULT 0,
+    expires_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### TABLE 18: `story_views` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS story_views (
+    id TEXT PRIMARY KEY,
+    story_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(story_id, user_id)
+);
+```
+
+### TABLE 19: `story_replies` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS story_replies (
+    id TEXT PRIMARY KEY,
+    story_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    message TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### TABLE 20: `story_highlights` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS story_highlights (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT,
+    cover_image TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### TABLE 21: `highlight_stories` ⭐ (NEW TABLE)
+```sql
+CREATE TABLE IF NOT EXISTS highlight_stories (
+    id TEXT PRIMARY KEY,
+    highlight_id TEXT NOT NULL,
+    story_id TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
@@ -1221,6 +1421,313 @@ Database Actions:
 2. UPDATE users SET followingCount = followingCount - 1 WHERE userId = followerId
 3. UPDATE users SET followerCount = followerCount - 1 WHERE userId = followingId
 ```
+
+---
+
+### 👥 FOLLOWERS SYSTEM ENDPOINTS (NEW - Advanced Followers Table)
+
+⭐ **New followers table** advanced features ke saath:
+- Follower status management (accepted/pending)
+- Mutual following detection
+- Notifications toggle
+- Source tracking (which app feature led to follow)
+
+#### 1. Add Follower (New Relationship)
+```
+Endpoint: POST /api/followers/add
+Content-Type: multipart/form-data
+
+Parameters:
+- follower_id (TEXT, REQUIRED) - Who is following
+- following_id (TEXT, REQUIRED) - Who is being followed
+- status (TEXT, OPTIONAL) - 'accepted' or 'pending' (default: 'accepted')
+- source (TEXT, OPTIONAL) - Where follow came from ('search', 'recommendation', 'profile', etc.)
+
+Response:
+{
+  "success": true,
+  "message": "Follower added",
+  "id": "follower_1704067200000_abc123xyz",
+  "isMutual": false
+}
+
+Example (APK se):
+```
+POST /api/followers/add
+Form Data:
+- follower_id: "user123"
+- following_id: "user456"
+- status: "accepted"
+- source: "search"
+```
+
+Database Actions:
+1. Check if relationship exists (UNIQUE constraint)
+2. Check for mutual following (is user456 also following user123?)
+3. INSERT into followers table with auto-detected mutual status
+4. If status is 'accepted':
+   - UPDATE users SET followingCount = followingCount + 1 WHERE userId = follower_id
+   - UPDATE users SET followerCount = followerCount + 1 WHERE userId = following_id
+5. Return follower ID aur mutual status
+```
+
+#### 2. Remove Follower
+```
+Endpoint: POST /api/followers/remove
+Content-Type: multipart/form-data
+
+Parameters:
+- follower_id (TEXT, REQUIRED)
+- following_id (TEXT, REQUIRED)
+
+Response:
+{
+  "success": true,
+  "message": "Follower removed"
+}
+
+Database Actions:
+1. Check if relationship exists
+2. Get follower status
+3. DELETE FROM followers WHERE follower_id = ? AND following_id = ?
+4. If status was 'accepted':
+   - UPDATE users SET followingCount = followingCount - 1 (follower_id)
+   - UPDATE users SET followerCount = followerCount - 1 (following_id)
+```
+
+#### 3. Get Followers List
+```
+Endpoint: GET /api/followers/list/{userId}?limit=50&offset=0&status=accepted
+Method: GET
+
+Parameters:
+- userId (PATH PARAM) - Whose followers to fetch
+- limit (QUERY) - Number of results (default: 50)
+- offset (QUERY) - Pagination (default: 0)
+- status (QUERY) - Filter by status: 'accepted', 'pending' (default: 'accepted')
+
+Response:
+{
+  "success": true,
+  "followers": [
+    {
+      "id": "follower_1704067200000_abc123xyz",
+      "follower_id": "user123",
+      "following_id": "user456",
+      "status": "accepted",
+      "is_mutual": 1,
+      "notifications_enabled": 1,
+      "source": "search",
+      "created_at": "2024-01-01T10:00:00Z",
+      "updated_at": "2024-01-01T10:00:00Z",
+      // User ki details (joined with users table):
+      "username": "john_doe",
+      "fullName": "John Doe",
+      "profilePicUrl": "https://...",
+      "isVerified": 1,
+      "bio": "Bio text"
+    },
+    ...more followers
+  ],
+  "total": 150,
+  "limit": 50,
+  "offset": 0
+}
+
+Example (APK):
+```
+// User456 ke followers dekhne hain
+GET /api/followers/list/user456?limit=30&offset=0&status=accepted
+```
+
+Database Action:
+- SELECT f.*, u.username, u.fullName, u.profilePicUrl, u.isVerified, u.bio
+- FROM followers f JOIN users u ON f.follower_id = u.userId
+- WHERE f.following_id = ? AND f.status = ?
+- ORDER BY f.created_at DESC
+- LIMIT ? OFFSET ?
+```
+
+#### 4. Get Following List
+```
+Endpoint: GET /api/followers/following/{userId}?limit=50&offset=0&status=accepted
+Method: GET
+
+Parameters:
+- userId (PATH PARAM) - Whose following list to fetch
+- limit (QUERY) - Number of results (default: 50)
+- offset (QUERY) - Pagination (default: 0)
+- status (QUERY) - Filter by status: 'accepted', 'pending' (default: 'accepted')
+
+Response:
+{
+  "success": true,
+  "following": [
+    {
+      "id": "follower_1704067200000_def456uvw",
+      "follower_id": "user123",
+      "following_id": "user789",
+      "status": "accepted",
+      "is_mutual": 1,
+      "notifications_enabled": 1,
+      "source": "recommendation",
+      "created_at": "2024-01-02T14:30:00Z",
+      "updated_at": "2024-01-02T14:30:00Z",
+      // User ki details (joined with users table):
+      "username": "jane_smith",
+      "fullName": "Jane Smith",
+      "profilePicUrl": "https://...",
+      "isVerified": 0,
+      "bio": "Travel enthusiast"
+    },
+    ...more following
+  ],
+  "total": 75,
+  "limit": 50,
+  "offset": 0
+}
+
+Example (APK):
+```
+// User123 jisko follow kar raha hai wo dekhne hain
+GET /api/followers/following/user123?limit=30&offset=0
+```
+
+Database Action:
+- SELECT f.*, u.username, u.fullName, u.profilePicUrl, u.isVerified, u.bio
+- FROM followers f JOIN users u ON f.following_id = u.userId
+- WHERE f.follower_id = ? AND f.status = ?
+- ORDER BY f.created_at DESC
+- LIMIT ? OFFSET ?
+```
+
+#### 5. Accept Follower Request
+```
+Endpoint: POST /api/followers/accept
+Content-Type: multipart/form-data
+
+Parameters:
+- follower_id (TEXT, REQUIRED)
+- following_id (TEXT, REQUIRED)
+
+Response:
+{
+  "success": true,
+  "message": "Follower request accepted"
+}
+
+Scenario: User456 ko user123 se follow request aaya (status = 'pending')
+Ab user456 ne accept kiya to:
+
+Database Actions:
+1. UPDATE followers SET status = 'accepted', updated_at = ?
+2. UPDATE users SET followingCount = followingCount + 1 WHERE userId = follower_id
+3. UPDATE users SET followerCount = followerCount + 1 WHERE userId = following_id
+```
+
+#### 6. Reject Follower Request
+```
+Endpoint: POST /api/followers/reject
+Content-Type: multipart/form-data
+
+Parameters:
+- follower_id (TEXT, REQUIRED)
+- following_id (TEXT, REQUIRED)
+
+Response:
+{
+  "success": true,
+  "message": "Follower request rejected"
+}
+
+Database Actions:
+1. DELETE FROM followers WHERE follower_id = ? AND following_id = ?
+2. No user count update (status tha pending, so counts nahi badhay the)
+```
+
+#### 7. Toggle Notifications
+```
+Endpoint: POST /api/followers/toggle-notifications
+Content-Type: multipart/form-data
+
+Parameters:
+- follower_id (TEXT, REQUIRED)
+- following_id (TEXT, REQUIRED)
+- notifications_enabled (TEXT) - "true" or "false"
+
+Response:
+{
+  "success": true,
+  "message": "Notification settings updated",
+  "notificationsEnabled": true
+}
+
+Example: User123 ko user456 ke notifications off karne hain:
+```
+POST /api/followers/toggle-notifications
+Form Data:
+- follower_id: "user123"
+- following_id: "user456"
+- notifications_enabled: "false"
+```
+
+Database Action:
+- UPDATE followers SET notifications_enabled = ?, updated_at = ?
+- WHERE follower_id = ? AND following_id = ?
+```
+
+#### 8. Get Follower Status
+```
+Endpoint: GET /api/followers/status?follower_id=user123&following_id=user456
+Method: GET
+
+Parameters:
+- follower_id (QUERY, REQUIRED)
+- following_id (QUERY, REQUIRED)
+
+Response (Following):
+{
+  "success": true,
+  "isFollowing": true,
+  "status": "accepted",
+  "isMutual": true,
+  "notificationsEnabled": true
+}
+
+Response (Not Following):
+{
+  "success": true,
+  "isFollowing": false,
+  "status": null
+}
+
+Use Case: Profile page par check karna ki current user ne us profile ko follow kiya hai ya nahi
+
+Database Action:
+- SELECT status, is_mutual, notifications_enabled
+- FROM followers
+- WHERE follower_id = ? AND following_id = ?
+```
+
+#### 9. Followers Table Schema
+```sql
+CREATE TABLE IF NOT EXISTS followers (
+    id TEXT PRIMARY KEY,                    -- Unique ID
+    follower_id TEXT NOT NULL,              -- Who is following
+    following_id TEXT NOT NULL,             -- Who is being followed
+    status TEXT DEFAULT 'accepted',         -- 'accepted' or 'pending'
+    is_mutual INTEGER DEFAULT 0,            -- 1 if both follow each other
+    notifications_enabled INTEGER DEFAULT 1, -- 1 = notifications on, 0 = off
+    source TEXT,                            -- Where follow came from
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(follower_id, following_id),      -- One follow per pair
+    FOREIGN KEY (follower_id) REFERENCES users(userId),
+    FOREIGN KEY (following_id) REFERENCES users(userId)
+);
+```
+
+---
 
 #### 10. Messaging System - Conversations, Messages & Calls
 ```

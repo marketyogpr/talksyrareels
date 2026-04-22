@@ -1,319 +1,462 @@
-# 🚀 SHORTSTALKSYRA - QUICK START GUIDE FOR APK
-
-## आप का APK यह करेगा ↔️ Backend यह करेगा
+# 🚀 QUICK START GUIDE (UPDATED SCHEMA)
+## ShortsTalkSyra Backend - Integration Guide
 
 ---
 
-## 📱 FLOW DIAGRAM
+## 📋 WHAT'S BEEN UPDATED?
 
 ```
-USER APP                    CLOUDFLARE WORKER              D1 DATABASE
-                           (Middle Man)
-
-Register ───────────────→ /api/user/register ───────→ users table
-                                                       
-Login ───────────────────→ /api/user/login ──────────→ Verify & Return
-
-Create Post ─────────────→ /api/posts/create ────────→ posts table
-(+ upload video/image)      ↓ (R2 Storage)
-                             Upload to R2
-                             Return URL
-                             
-Get Feed ───────────────→ /api/posts/feed ──────────→ Query posts table
-                                                      Return 50 posts
-                                                      
-Like Post ──────────────→ /api/social/like ─────────→ likes table
-                                                      +1 to likeCount
-                                                      
-Comment ───────────────→ /api/social/comment ──────→ comments table
-                                                      +1 to commentCount
-
-Follow User ────────────→ /api/social/follow ──────→ follows table
-                                                      Update counts
+✅ Posts Table - SIMPLIFIED (id, user_id, type, caption, visibility + counts)
+✅ Reels Table - NEW (linked to posts, contains video details)
+✅ Stories Table - NEW (auto-expire after 24 hours)
+✅ Groups System - NEW (create, manage members, post in groups)
+✅ Thoughts System - NEW (short text content like tweets)
+✅ Polls System - NEW (questions, options, voting)
+✅ All endpoints updated with new field names
 ```
 
 ---
 
-## 🔄 3 TYPES OF REQUESTS YOUR APK SENDS
+## 🎯 STEP 1: SETUP
 
-### 1️⃣ **SIMPLE DATA (GET)**
-```
-APK: "मुझे सभी posts चाहिए"
-Backend: GET /api/posts/feed
-Response: JSON array of 50 posts
-```
+### Prerequisites
+- Flutter/Dart APK development environment
+- API testing tool (Postman, Thunder Client, etc.)
+- Cloudflare account with Workers setup
 
-### 2️⃣ **TEXT DATA (POST - JSON)**
-```
-APK: "मुझे comment submit करना है"
-Backend: POST /api/social/comment
-Body: { postId, userId, username, content }
-Response: { success: true, commentId: "..." }
-```
-
-### 3️⃣ **FORM DATA WITH FILES (POST - multipart)**
-```
-APK: "मुझे नया post बनाना है + video upload करनी है"
-Backend: POST /api/posts/create
-- video file → uploaded to R2 → URL returned
-- metadata → saved to DB
-Response: { success: true, postId, mediaUrl }
+### Environment Variables
+```bash
+# .env or wrangler.toml
+DATABASE_ID = "e5c60c09-bbc6-474f-a8f5-e6f279474b41"
+BUCKET_NAME = "socialapkvideos"
+R2_PUBLIC_URL = "https://buyviro.com"
+WORKER_URL = "https://your-worker.dev"
 ```
 
 ---
 
-## 📌 MAIN ENDPOINTS आपको चाहिए
+## 📱 STEP 2: APK INTEGRATION EXAMPLES
 
-### **USER ENDPOINTS**
-| APK Action | Endpoint | Method | Returns |
-|-----------|----------|--------|---------|
-| Register करना | `/api/user/register` | POST | success message |
-| Login करना | `/api/user/login` | POST | user full data |
-| Profile देखना | `/api/user/check?userId=x` | GET | user details |
-| Profile edit | `/api/user/update` | POST | success message |
-| Search user | `/api/user/search?query=x` | GET | list of users |
+### 2.1 Create a Reel Post
 
-### **POST ENDPOINTS** ⭐ (MAIN)
-| APK Action | Endpoint | Method | Returns |
-|-----------|----------|--------|---------|
-| Post बनाना | `/api/posts/create` | POST | postId, mediaUrl |
-| Feed देखना | `/api/posts/feed` | GET | array of 50 posts |
-| User posts | `/api/posts/user/{userId}` | GET | user के all posts |
-| Single post | `/api/posts/detail/{postId}` | GET | post full details |
-| Post edit | `/api/posts/update` | POST | success message |
-| Post delete | `/api/posts/delete` | POST | success message |
-| View count | `/api/posts/view` | POST | view counted |
+**Dart Code:**
+```dart
+import 'package:dio/dio.dart';
 
-### **SOCIAL ENDPOINTS**
-| APK Action | Endpoint | Method | Returns |
-|-----------|----------|--------|---------|
-| Like करना | `/api/social/like` | POST | success message |
-| Unlike करना | `/api/social/unlike` | POST | success message |
-| Save करना | `/api/social/save` | POST | success message |
-| Comment | `/api/social/comment` | POST | commentId |
-| Comments list | `/api/comments/post/{postId}` | GET | array of comments |
-| Follow | `/api/social/follow` | POST | success message |
-| Unfollow | `/api/social/unfollow` | POST | success message |
-| Repost | `/api/social/repost` | POST | repostId |
+Future<void> createReel() async {
+  try {
+    var formData = FormData.fromMap({
+      'user_id': 'user_123',
+      'type': 'reel',
+      'caption': 'Amazing sunset!',
+      'visibility': 'public',
+      'video': await MultipartFile.fromFile(
+        videoPath,
+        filename: 'reel.mp4',
+      ),
+      'duration': 15.5,
+      'width': 1080,
+      'height': 1920,
+    });
 
----
+    var response = await dio.post(
+      'https://your-worker.dev/api/posts/create',
+      data: formData,
+    );
 
-## 📤 CREATE POST EXAMPLE
+    print('Post created: ${response.data['postId']}');
+  } catch (e) {
+    print('Error: $e');
+  }
+}
+```
 
-```kotlin
-// APK में यह code चलेगा:
+### 2.2 Get Feed Posts
 
-fun createPost(
-    userId: String,
-    username: String,
-    videoFile: File,
-    caption: String,
-    tags: String = "#viral"
-) {
-    val url = "https://api.example.com/api/posts/create"
-    val body = MultipartBody.Builder()
-        .addFormDataPart("userId", userId)
-        .addFormDataPart("username", username)
-        .addFormDataPart("type", "video")
-        .addFormDataPart("content", caption)
-        .addFormDataPart("tags", tags)
-        .addFormDataPart("visibility", "public")
-        .addFormDataPart("language", "en")
-        .addFormDataPart("media", videoFile.name, 
-            RequestBody.create(MediaType.parse("video/mp4"), videoFile))
-        .build()
+**Dart Code:**
+```dart
+Future<List<Post>> getFeedPosts({int limit = 50, int offset = 0}) async {
+  try {
+    var response = await dio.get(
+      'https://your-worker.dev/api/posts/feed',
+      queryParameters: {
+        'limit': limit,
+        'offset': offset,
+      },
+    );
+
+    List<Post> posts = (response.data['posts'] as List)
+        .map((p) => Post.fromJson(p))
+        .toList();
+
+    return posts;
+  } catch (e) {
+    print('Error: $e');
+    return [];
+  }
+}
+
+class Post {
+  String id;
+  String userId;
+  String type;
+  String caption;
+  int likeCount;
+  int commentCount;
+  int shareCount;
+  int viewCount;
+  Reel? reel;
+
+  Post.fromJson(Map<String, dynamic> json)
+    : id = json['id'],
+      userId = json['user_id'],
+      type = json['type'],
+      caption = json['caption'],
+      likeCount = json['like_count'] ?? 0,
+      commentCount = json['comment_count'] ?? 0,
+      shareCount = json['share_count'] ?? 0,
+      viewCount = json['view_count'] ?? 0,
+      reel = json['reel'] != null ? Reel.fromJson(json['reel']) : null;
+}
+
+class Reel {
+  String id;
+  String postId;
+  String videoUrl;
+  String? thumbnailUrl;
+  double? duration;
+
+  Reel.fromJson(Map<String, dynamic> json)
+    : id = json['id'],
+      postId = json['post_id'],
+      videoUrl = json['video_url'],
+      thumbnailUrl = json['thumbnail_url'],
+      duration = json['duration'];
+}
+```
+
+### 2.3 Create a Story
+
+**Dart Code:**
+```dart
+Future<void> createStory(File mediaFile, bool isVideo) async {
+  try {
+    var formData = FormData.fromMap({
+      'user_id': 'user_123',
+      'media': await MultipartFile.fromFile(
+        mediaFile.path,
+        filename: isVideo ? 'story.mp4' : 'story.jpg',
+      ),
+      'media_type': isVideo ? 'video' : 'image',
+      'caption': 'Check this out!',
+      'duration': isVideo ? 10.0 : null,
+    });
+
+    var response = await dio.post(
+      'https://your-worker.dev/api/stories/create',
+      data: formData,
+    );
+
+    print('Story created: ${response.data['storyId']}');
     
-    val request = Request.Builder()
-        .url(url)
-        .post(body)
-        .build()
-    
-    client.newCall(request).enqueue(object : Callback {
-        override fun onResponse(call: Call, response: Response) {
-            val json = response.body()?.string()
-            // {"success": true, "postId": "...", "mediaUrl": "..."}
-            // अब यह post हमारे database में है! ✅
-        }
-    })
+    // Story will auto-expire after 24 hours
+  } catch (e) {
+    print('Error: $e');
+  }
+}
+```
+
+### 2.4 Create a Poll
+
+**Dart Code:**
+```dart
+Future<void> createPoll(String postId, String question, List<String> options) async {
+  try {
+    // Create poll
+    var pollResponse = await dio.post(
+      'https://your-worker.dev/api/polls/create',
+      data: FormData.fromMap({
+        'post_id': postId,
+        'question': question,
+        'is_multiple': 0, // Single choice
+      }),
+    );
+
+    String pollId = pollResponse.data['pollId'];
+
+    // Add options
+    for (var option in options) {
+      await dio.post(
+        'https://your-worker.dev/api/polls/options/add',
+        data: FormData.fromMap({
+          'poll_id': pollId,
+          'option_text': option,
+        }),
+      );
+    }
+
+    print('Poll created with ${ options.length} options');
+  } catch (e) {
+    print('Error: $e');
+  }
+}
+```
+
+### 2.5 View Story and Track Views
+
+**Dart Code:**
+```dart
+Future<void> viewStory(String storyId, String userId) async {
+  try {
+    // Track view
+    await dio.post(
+      'https://your-worker.dev/api/stories/view',
+      data: FormData.fromMap({
+        'story_id': storyId,
+        'user_id': userId,
+      }),
+    );
+
+    print('Story view tracked');
+  } catch (e) {
+    print('Error: $e');
+  }
+}
+
+Future<List<String>> getStoryViewers(String storyId) async {
+  try {
+    var response = await dio.get(
+      'https://your-worker.dev/api/stories/$storyId/viewers',
+    );
+
+    List<String> viewers = (response.data['viewers'] as List)
+        .map((v) => v['user_id'] as String)
+        .toList();
+
+    return viewers;
+  } catch (e) {
+    print('Error: $e');
+    return [];
+  }
 }
 ```
 
 ---
 
-## 🗄️ DATABASE TABLES
+## 🔑 KEY FEATURES
 
-### **posts** (MAIN TABLE)
-```sql
-postId (UNIQUE) ← Automatically generated
-├── userId
-├── username
-├── userImage
-├── type ('post', 'video', 'story')
-├── content (caption)
-├── mediaUrl (R2 link)
-├── thumbnailUrl
-├── likeCount
-├── commentCount
-├── repostCount
-├── viewsCount
-├── saveCount
-├── tags (#viral,#trending)
-├── visibility ('public', 'private')
-└── timestamp
+### Posts & Reels
+- ✅ Create posts with optional video
+- ✅ Automatic video processing
+- ✅ Track views, likes, comments
+- ✅ Public/private visibility
+- ✅ Reel metadata (duration, resolution)
+
+### Stories
+- ✅ Auto-expire after 24 hours
+- ✅ Track viewers
+- ✅ Support image and video
+- ✅ Captions
+
+### Groups
+- ✅ Create public/private groups
+- ✅ Manage members
+- ✅ Group-specific posts
+
+### Thoughts
+- ✅ Short text content (like tweets)
+- ✅ Reply, like, repost
+- ✅ Thread management
+
+### Polls
+- ✅ Single or multiple choice
+- ✅ Auto-expiring polls
+- ✅ Vote tracking
+- ✅ Real-time results
+
+---
+
+## 📊 DATABASE SCHEMA AT A GLANCE
+
+### Main Tables
+```
+posts (id, user_id, type, caption, visibility, counts, timestamps)
+reels (id, post_id, video_url, duration, audio, counts)
+stories (id, user_id, media_url, caption, expires_at)
+groups (id, name, created_by, is_private, members)
+thoughts (id, post_id, text, counts)
+polls (id, post_id, question, options, votes)
 ```
 
-### **comments** table
-```sql
-commentId (UNIQUE)
-├── postId
-├── userId
-├── username
-├── content
-├── likeCount
-└── timestamp
+### Support Tables
 ```
-
-### **likes** table
-```sql
-likeId (UNIQUE)
-├── userId
-├── postId
-└── timestamp
-```
-
-### **follows** table
-```sql
-followerId
-├── followingId
-└── timestamp
+story_views - Track who viewed stories
+group_members - Track group membership
+poll_options - Poll choices
+poll_votes - Vote tracking
+notifications - User notifications
+conversations - Chat conversations
+messages - Chat messages
+calls - Voice/video calls
 ```
 
 ---
 
-## 💾 MEDIA UPLOAD FLOW
+## 🚦 TYPICAL WORKFLOW
 
+### 1. User Posts Reel
 ```
-1. APK: Video/Image file भेजता है
-         ↓
-2. Backend: File को R2 में upload करता है
-         ↓
-3. R2: File store करता है + URL return करता है
-         ↓
-4. Database: URL को posts table में save करता है
-         ↓
-5. APK: postId और mediaUrl receive करता है ✅
+POST /api/posts/create (type: 'reel')
+  ↓
+Reel auto-created with video metadata
+  ↓
+POST /api/posts/view (increment views)
+  ↓
+POST /api/social/like (if user likes)
+  ↓
+POST /api/thoughts/create (add comment)
+```
+
+### 2. User Creates Story
+```
+POST /api/stories/create
+  ↓
+Story stored in database
+  ↓
+Auto-expires after 24 hours
+  ↓
+POST /api/stories/view (track viewers)
+```
+
+### 3. User Creates Poll
+```
+POST /api/polls/create
+  ↓
+POST /api/polls/options/add (multiple times)
+  ↓
+POST /api/polls/vote (users vote)
+  ↓
+GET /api/polls/{id} (see results)
 ```
 
 ---
 
-## 🎯 IMPORTANT THINGS TO REMEMBER
+## 🔄 MIGRATION GUIDE (From Old Schema)
 
-✅ **सभी requests तुरंत Database में save हो जाती हैं**
-✅ **Media files R2 में जाती हैं**
-✅ **Unique IDs खुद बनती हैं (postId, commentId, etc.)**
-✅ **Timestamps ISO 8601 format में होते हैं**
-✅ **सभी responses JSON में हैं**
-✅ **CORS सभी requests के लिए enabled है**
-✅ **Profile images, videos सब safely R2 में store होते हैं**
+### Column Name Changes
+```
+OLD                    →    NEW
+postId                 →    id
+userId                 →    user_id
+userImage             →    (in separate user table)
+isVerified            →    (in separate user table)
+mediaUrl              →    video_url (in reels table)
+thumbnailUrl          →    thumbnail_url (in reels table)
+content               →    caption (in posts table)
+likeCount             →    like_count
+commentCount          →    comment_count
+repostCount           →    share_count
+viewsCount            →    view_count
+timestamp             →    created_at
+updatedAt             →    updated_at
+```
+
+### New Separated Tables
+```
+OLD: Everything in posts table
+NEW: 
+  - posts (basic metadata)
+  - reels (video details)
+  - stories (story-specific)
+  - groups (group functionality)
+  - thoughts (comments/short text)
+  - polls (voting)
+```
 
 ---
 
-## 🔐 ERROR HANDLING
+## 🔐 AUTHENTICATION
 
-सभी requests में APK को यह check करना चाहिए:
+All endpoints should include:
+```
+Headers:
+  - Authorization: Bearer <token>  (if implemented)
+  - Content-Type: multipart/form-data (for file uploads)
+```
 
+---
+
+## ✅ TESTING CHECKLIST
+
+```
+□ Create post with caption
+□ Upload reel with video
+□ Get feed posts (paginated)
+□ View post details with reel info
+□ Update post caption
+□ Delete post
+□ Create story (image)
+□ Create story (video)
+□ Track story views
+□ Create group
+□ Add group member
+□ Create thought/comment
+□ Create poll
+□ Vote on poll
+□ Get poll results
+□ Get notifications
+□ Send message
+□ Create conversation
+```
+
+---
+
+## 🐛 ERROR HANDLING
+
+All endpoints return either:
+
+**Success:**
 ```json
 {
-  "success": true/false,
-  "message": "...",
+  "success": true,
   "data": {...}
 }
 ```
 
-अगर `success: false` तो error message दिखाओ user को।
-
----
-
-## 📊 REAL WORLD EXAMPLE: USER CREATING A VIDEO POST
-
-### Step 1: User app में open करता है
-```
-APK → Check userId from SharedPreferences
-```
-
-### Step 2: User video select करता है
-```
-APK → Video file select करता है (duration, size, thumbnail)
-```
-
-### Step 3: User caption लिखता है
-```
-APK → Text input: "Check this out! 🔥"
-Tags input: "#viral #trending"
-Location: "Mumbai"
-```
-
-### Step 4: POST BUTTON दबाता है
-```
-APK → POST /api/posts/create
-Body:
-{
-  userId: "user123",
-  username: "john_doe",
-  userImage: "https://...",
-  type: "video",
-  content: "Check this out! 🔥",
-  tags: "#viral,#trending",
-  locationName: "Mumbai",
-  duration: 30,
-  visibility: "public",
-  allowComments: 1,
-  media: <video_file>,
-  thumbnail: <thumbnail_image>
-}
-```
-
-### Step 5: Backend करता है:
-```
-1. Video को R2 में upload करता है
-   → mediaUrl = "https://buyviro.com/posts/user123/1234567890_video.mp4"
-
-2. Thumbnail को R2 में upload करता है
-   → thumbnailUrl = "https://buyviro.com/thumbnails/user123/1234567890_thumb.jpg"
-
-3. posts table में entry बनाता है:
-   postId = "user123_1234567890_abc123"
-   userId = "user123"
-   username = "john_doe"
-   content = "Check this out! 🔥"
-   mediaUrl = "https://..."
-   tags = "#viral,#trending"
-   likeCount = 0
-   timestamp = "2024-01-01T12:30:00Z"
-   ... (और सभी fields)
-
-4. users table में postCount += 1 करता है
-```
-
-### Step 6: APK को मिलता है:
+**Error:**
 ```json
 {
-  "success": true,
-  "postId": "user123_1234567890_abc123",
-  "mediaUrl": "https://buyviro.com/posts/user123/1234567890_video.mp4",
-  "thumbnailUrl": "https://buyviro.com/thumbnails/user123/1234567890_thumb.jpg",
-  "message": "Post created successfully"
+  "error": "Error message",
+  "status": 400
 }
-```
-
-### Step 7: APK:
-```
-✅ Show success message
-✅ Add post to local list
-✅ Update user postCount
-✅ Refresh feed
 ```
 
 ---
 
-**सब कुछ समझ गए? अब APK develop करो! 🚀**
+## 📚 ADDITIONAL RESOURCES
+
+- **Full API Docs:** [API_DOCUMENTATION_NEW.md](API_DOCUMENTATION_NEW.md)
+- **Database Schema:** [GEMINI_SUMMARY.md](GEMINI_SUMMARY.md)
+- **Backend Code:** `/src/index.js`
+- **Database Helpers:** `/src/database/db.js`
+
+---
+
+## 🚀 DEPLOYMENT
+
+```bash
+# Deploy to Cloudflare Workers
+wrangler deploy
+
+# View logs
+wrangler tail
+
+# Test locally
+wrangler dev
+```
+
+---
+
+**Ready to integrate!** 🎉  
+**Last Updated:** April 21, 2026  
+**Version:** 2.0 (NEW SCHEMA)

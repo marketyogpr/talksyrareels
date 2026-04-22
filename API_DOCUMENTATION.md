@@ -1,259 +1,153 @@
-/**
- * ╔══════════════════════════════════════════════════════════════════╗
- * ║          SHORTSTALKSYRA - API ENDPOINTS DOCUMENTATION             ║
- * ║                 APK <-> Backend Communication                     ║
- * ╚══════════════════════════════════════════════════════════════════╝
- * 
- * PROJECT: Shortstalksyra (Social Media App)
- * BACKEND: Cloudflare Workers + D1 Database + R2 Storage
- * PURPOSE: Complete API guide for mobile app integration
- * 
- * ===================================================================
- * SECTION 1: USER ENDPOINTS
- * ===================================================================
- */
+# 📚 API DOCUMENTATION (UPDATED SCHEMA)
+## ShortsTalkSyra - Complete API Reference
 
-// 1️⃣ REGISTER USER - नया user खाता बनाना
-POST /api/user/register
-Content-Type: multipart/form-data
-Parameters:
-  - userId (TEXT, REQUIRED) - Unique user ID
-  - username (TEXT, REQUIRED) - Username (lowercase, no spaces)
-  - fullName (TEXT) - User's full name
-  - email (TEXT) - Email address
-  - password (TEXT, REQUIRED) - User password
-  - birthDate (TEXT) - Date of birth
-  - profilePic (FILE) - Profile picture
+---
 
-Response:
-  {
-    "success": true,
-    "message": "User Registered"
-  }
+## 📖 TABLE OF CONTENTS
+1. [Posts & Reels](#posts--reels)
+2. [Stories](#stories)
+3. [Groups](#groups)
+4. [Thoughts](#thoughts)
+5. [Polls](#polls)
+6. [Notifications](#notifications)
+7. [Messages & Conversations](#messages--conversations)
+8. [Calls](#calls)
 
-// ========================
+---
 
-// 2️⃣ LOGIN USER - User को login करवाना
-POST /api/user/login
-Content-Type: multipart/form-data
-Parameters:
-  - username (TEXT) - Username or email
-  - password (TEXT) - Password
+## 🎬 POSTS & REELS
 
-Response:
-  {
-    "userId": "user123",
-    "username": "john_doe",
-    "fullName": "John Doe",
-    "email": "john@example.com",
-    "profilePic": "https://...",
-    "isVerified": 0,
-    "followerCount": 100,
-    "followingCount": 50,
-    ...
-  }
-
-// ========================
-
-// 3️⃣ CHECK PROFILE - User की profile details लानी
-GET /api/user/check?userId=user123
-
-Response:
-  {
-    "userId": "user123",
-    "username": "john_doe",
-    "fullName": "John Doe",
-    "profilePic": "https://...",
-    ...
-  }
-
-// ========================
-
-// 4️⃣ UPDATE PROFILE - User की profile को edit करना
-POST /api/user/update
-Content-Type: multipart/form-data
-Parameters:
-  - userId (TEXT, REQUIRED)
-  - username (TEXT)
-  - fullName (TEXT)
-  - bio (TEXT)
-  - location (TEXT)
-  - website (TEXT)
-  - birthDate (TEXT)
-  - profilePic (FILE) - नई profile picture
-  - coverPic (FILE) - Cover photo
-
-Response:
-  {
-    "success": true,
-    "message": "Profile Updated"
-  }
-
-// ========================
-
-// 5️⃣ SEARCH USERS - Username से users खोजना
-GET /api/user/search?query=john
-
-Response:
-  {
-    "success": true,
-    "users": [
-      {
-        "userId": "user123",
-        "username": "john_doe",
-        "fullName": "John Doe",
-        "profilePic": "https://...",
-        "isVerified": 1
-      }
-    ]
-  }
-
-/**
- * ===================================================================
- * SECTION 2: POST ENDPOINTS (MAIN - APK TO DB CONNECTION)
- * ===================================================================
- */
-
-// 1️⃣ CREATE POST - नया post बनाना (यह MAIN है!)
+### Create Post/Reel
+```
 POST /api/posts/create
 Content-Type: multipart/form-data
 
 Parameters:
-  REQUIRED:
-    - userId (TEXT) - किस user ने post किया
-    - username (TEXT) - Username (for display)
-    - type (TEXT) - 'post', 'video', 'story' (auto-detected as 'video' if media uploaded)
-    - media (FILE) - Video/Image file
-
-  OPTIONAL:
-    - userImage (TEXT) - User की profile pic URL
-    - isVerified (INTEGER) - Verified badge (0/1)
-    - content (TEXT) - Post caption/text
-    - thumbnail (FILE) - Thumbnail image for video
-    - metadata (TEXT) - JSON string with extra data
-    - tags (TEXT) - Comma-separated hashtags (e.g., "#viral,#trending")
-    - language (TEXT) - Language code (default: 'en')
-    - visibility (TEXT) - 'public', 'private', 'friends' (default: 'public')
-    - allowComments (INTEGER) - Allow comments? 1/0 (default: 1)
-    - isNsfw (INTEGER) - Adult content? 0/1 (default: 0)
-    - locationName (TEXT) - Location name
-    - lat (FLOAT) - Latitude
-    - lng (FLOAT) - Longitude
-    - aspectRatio (FLOAT) - Video aspect ratio (default: 1.0)
-    - duration (FLOAT) - Video duration in seconds
-    - adLink (TEXT) - Ad link if promoted
-    - isPromoted (INTEGER) - Is promoted? 0/1 (default: 0)
-    - coinReward (INTEGER) - Coin reward amount (default: 0)
+  - user_id (TEXT, REQUIRED) - Post creator's user ID
+  - type (TEXT) - 'post', 'reel', or 'story' (default: 'post')
+  - caption (TEXT) - Post caption/description
+  - visibility (TEXT) - 'public' or 'private' (default: 'public')
+  - video (FILE) - Video file for reels
+  - duration (FLOAT) - Video duration in seconds
+  - width (INTEGER) - Video width
+  - height (INTEGER) - Video height
 
 Response:
-  {
-    "success": true,
-    "postId": "user123_1713628800000_abc123",
-    "mediaUrl": "https://buyviro.com/posts/user123/1713628800000_video.mp4",
-    "thumbnailUrl": "https://buyviro.com/thumbnails/user123/1713628800000_thumb.jpg",
-    "message": "Post created successfully"
-  }
+{
+  "success": true,
+  "postId": "1234567890_abc123",
+  "message": "Post created successfully"
+}
+```
 
-// ========================
-
-// 2️⃣ GET FEED POSTS - सभी posts की feed लानी
+### Get Feed Posts
+```
 GET /api/posts/feed?limit=50&offset=0
 
-Parameters:
-  - limit (INTEGER) - कितने posts चाहिए (default: 50)
-  - offset (INTEGER) - कितने skip करने हैं (pagination)
+Query Parameters:
+  - limit (INTEGER) - Number of posts (default: 50)
+  - offset (INTEGER) - Pagination offset (default: 0)
 
 Response:
-  {
-    "success": true,
-    "posts": [
-      {
-        "postId": "user123_1713628800000_abc123",
-        "userId": "user123",
-        "username": "john_doe",
-        "userImage": "https://...",
-        "type": "video",
-        "content": "Check this out! 🔥",
-        "mediaUrl": "https://buyviro.com/posts/user123/video.mp4",
-        "thumbnailUrl": "https://...",
-        "likeCount": 150,
-        "commentCount": 25,
-        "repostCount": 10,
-        "viewsCount": 1000,
-        "timestamp": "2024-01-01T12:30:00Z"
-        ... (सभी columns)
-      }
-    ]
-  }
+{
+  "success": true,
+  "posts": [
+    {
+      "id": "post_id",
+      "user_id": "user_123",
+      "type": "reel",
+      "caption": "Amazing sunset!",
+      "visibility": "public",
+      "like_count": 245,
+      "comment_count": 12,
+      "share_count": 5,
+      "view_count": 1240,
+      "created_at": "2026-04-21T10:30:00Z",
+      "updated_at": "2026-04-21T10:30:00Z"
+    }
+  ]
+}
+```
 
-// ========================
-
-// 3️⃣ GET USER'S POSTS - किसी user के सभी posts लानी
-GET /api/posts/user/{userId}
-
-Example: GET /api/posts/user/user123
+### Get User Posts
+```
+GET /api/posts/user/{user_id}?limit=20&offset=0
 
 Response:
-  {
-    "success": true,
-    "posts": [ ... ]
-  }
+{
+  "success": true,
+  "posts": [...]
+}
+```
 
-// ========================
-
-// 4️⃣ GET SINGLE POST - एक specific post की details
-GET /api/posts/detail/{postId}
-
-Example: GET /api/posts/detail/user123_1713628800000_abc123
+### Get Post Detail
+```
+GET /api/posts/detail/{post_id}
 
 Response:
-  {
-    "success": true,
-    "post": {
-      "postId": "...",
-      ... (full post data)
+{
+  "success": true,
+  "post": {
+    "id": "post_id",
+    "user_id": "user_123",
+    "type": "reel",
+    "caption": "Amazing content",
+    "visibility": "public",
+    "like_count": 245,
+    "comment_count": 12,
+    "share_count": 5,
+    "view_count": 1240,
+    "created_at": "2026-04-21T10:30:00Z",
+    "reel": {
+      "id": "reel_id",
+      "post_id": "post_id",
+      "video_url": "https://...",
+      "thumbnail_url": "https://...",
+      "duration": 15.5,
+      "width": 1080,
+      "height": 1920,
+      "audio_name": "summer_vibes",
+      "audio_url": "https://...",
+      "is_monetized": 0
     }
   }
+}
+```
 
-// ========================
-
-// 5️⃣ UPDATE POST - Post को edit करना
+### Update Post
+```
 POST /api/posts/update
 Content-Type: multipart/form-data
 
 Parameters:
-  - postId (TEXT, REQUIRED) - कौन सा post update करना है
-  - content (TEXT) - नया content/caption
-  - tags (TEXT) - नए tags
-  - metadata (TEXT) - नया metadata
-  - visibility (TEXT) - Privacy setting change
-  - isNsfw (INTEGER) - NSFW status change
+  - postId (TEXT, REQUIRED)
+  - caption (TEXT)
+  - visibility (TEXT)
 
 Response:
-  {
-    "success": true,
-    "message": "Post updated successfully"
-  }
+{
+  "success": true,
+  "message": "Post updated"
+}
+```
 
-// ========================
-
-// 6️⃣ DELETE POST - Post को हटाना
+### Delete Post
+```
 POST /api/posts/delete
 Content-Type: multipart/form-data
 
 Parameters:
-  - postId (TEXT, REQUIRED) - Delete करने वाला post ID
-  - userId (TEXT, REQUIRED) - जिसने post किया (verification के लिए)
+  - postId (TEXT, REQUIRED)
 
 Response:
-  {
-    "success": true,
-    "message": "Post deleted successfully"
-  }
+{
+  "success": true,
+  "message": "Post deleted"
+}
+```
 
-// ========================
-
-// 7️⃣ INCREMENT VIEW COUNT - जब कोई post देखे
+### Track Post View
+```
 POST /api/posts/view
 Content-Type: multipart/form-data
 
@@ -261,253 +155,526 @@ Parameters:
   - postId (TEXT, REQUIRED)
 
 Response:
-  {
-    "success": true,
-    "message": "View counted"
-  }
+{
+  "success": true
+}
+```
 
-// ========================
+---
 
-// 8️⃣ INCREMENT CLICK COUNT - जब कोई link/ad click करे
-POST /api/posts/click
+## 📖 STORIES
+
+### Create Story
+```
+POST /api/stories/create
 Content-Type: multipart/form-data
 
 Parameters:
-  - postId (TEXT, REQUIRED)
+  - user_id (TEXT, REQUIRED) - Story creator
+  - media (FILE) - Image or video file
+  - media_type (TEXT) - 'image' or 'video' (default: 'image')
+  - caption (TEXT) - Story caption
+  - duration (FLOAT) - Duration in seconds (for videos)
 
 Response:
-  {
-    "success": true,
-    "message": "Click counted"
-  }
+{
+  "success": true,
+  "storyId": "story_1234567890",
+  "message": "Story created"
+}
 
-/**
- * ===================================================================
- * SECTION 3: SOCIAL INTERACTIONS
- * ===================================================================
- */
+Notes:
+  - Stories automatically expire after 24 hours
+  - Can be image or video
+  - Viewable by followers (based on privacy settings)
+```
 
-// 1️⃣ LIKE POST - Post को like करना
-POST /api/social/like
+### Get User Stories
+```
+GET /api/stories/user/{user_id}
+
+Response:
+{
+  "success": true,
+  "stories": [
+    {
+      "id": "story_id",
+      "user_id": "user_123",
+      "media_url": "https://...",
+      "media_type": "image",
+      "thumbnail_url": "https://...",
+      "duration": 5.0,
+      "caption": "Beautiful day!",
+      "view_count": 145,
+      "expires_at": "2026-04-22T10:30:00Z",
+      "created_at": "2026-04-21T10:30:00Z"
+    }
+  ]
+}
+```
+
+### Add Story View
+```
+POST /api/stories/view
 Content-Type: multipart/form-data
 
 Parameters:
-  - userId (TEXT, REQUIRED) - किसने like किया
-  - postId (TEXT, REQUIRED) - कौन सा post like किया
+  - story_id (TEXT, REQUIRED)
+  - user_id (TEXT, REQUIRED)
 
 Response:
-  {
-    "success": true,
-    "message": "Post liked"
-  }
+{
+  "success": true
+}
+```
 
-// ========================
+### Get Story Viewers
+```
+GET /api/stories/{story_id}/viewers
 
-// 2️⃣ UNLIKE POST - Like को remove करना
-POST /api/social/unlike
+Response:
+{
+  "success": true,
+  "viewers": [
+    {
+      "id": "view_id",
+      "story_id": "story_id",
+      "user_id": "user_456",
+      "created_at": "2026-04-21T11:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 👥 GROUPS
+
+### Create Group
+```
+POST /api/groups/create
 Content-Type: multipart/form-data
 
 Parameters:
-  - userId (TEXT, REQUIRED)
-  - postId (TEXT, REQUIRED)
+  - name (TEXT, REQUIRED) - Group name
+  - description (TEXT) - Group description
+  - created_by (TEXT, REQUIRED) - Creator user ID
+  - is_private (INTEGER) - 0 for public, 1 for private
+  - image (FILE) - Group cover image
 
 Response:
-  {
-    "success": true,
-    "message": "Like removed"
-  }
+{
+  "success": true,
+  "groupId": "group_1234567890",
+  "message": "Group created"
+}
+```
 
-// ========================
-
-// 3️⃣ SAVE POST - Post को bookmark/save करना
-POST /api/social/save
+### Add Group Member
+```
+POST /api/groups/members/add
 Content-Type: multipart/form-data
 
 Parameters:
-  - userId (TEXT, REQUIRED)
-  - postId (TEXT, REQUIRED)
+  - group_id (TEXT, REQUIRED)
+  - user_id (TEXT, REQUIRED)
 
 Response:
-  {
-    "success": true,
-    "message": "Post saved"
-  }
+{
+  "success": true
+}
+```
 
-// ========================
+### Get Group Members
+```
+GET /api/groups/{group_id}/members
 
-// 4️⃣ UNSAVE POST - Saved post को remove करना
-POST /api/social/unsave
+Response:
+{
+  "success": true,
+  "members": [
+    {
+      "id": "member_id",
+      "group_id": "group_id",
+      "user_id": "user_123",
+      "role": "admin",
+      "status": "active",
+      "joined_at": "2026-04-21T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 💭 THOUGHTS
+
+### Create Thought
+```
+POST /api/thoughts/create
 Content-Type: multipart/form-data
 
 Parameters:
-  - userId (TEXT, REQUIRED)
-  - postId (TEXT, REQUIRED)
+  - post_id (TEXT, REQUIRED) - Associated post
+  - text (TEXT, REQUIRED) - Thought content
 
 Response:
-  {
-    "success": true,
-    "message": "Post unsaved"
-  }
+{
+  "success": true,
+  "thoughtId": "thought_1234567890",
+  "message": "Thought created"
+}
+```
 
-// ========================
-
-// 5️⃣ ADD COMMENT - Comment लिखना
-POST /api/social/comment
-Content-Type: application/json
-
-Body:
-  {
-    "postId": "user123_1713628800000_abc123",
-    "userId": "user456",
-    "username": "commenter_user",
-    "userImage": "https://...",
-    "content": "Great post! 👍",
-    "isNsfw": 0
-  }
+### Get Post Thoughts
+```
+GET /api/thoughts/post/{post_id}?limit=20&offset=0
 
 Response:
-  {
-    "success": true,
-    "commentId": "comment_user456_user123_1713628800000_...",
-    "message": "Comment added"
-  }
+{
+  "success": true,
+  "thoughts": [
+    {
+      "id": "thought_id",
+      "post_id": "post_id",
+      "text": "This is amazing!",
+      "reply_count": 5,
+      "like_count": 23,
+      "repost_count": 2,
+      "view_count": 150,
+      "is_edited": 0,
+      "is_deleted": 0,
+      "created_at": "2026-04-21T10:30:00Z",
+      "updated_at": "2026-04-21T10:30:00Z"
+    }
+  ]
+}
+```
 
-// ========================
+---
 
-// 6️⃣ GET POST COMMENTS - किसी post के सभी comments
-GET /api/comments/post/{postId}
+## 🗳️ POLLS
 
-Example: GET /api/comments/post/user123_1713628800000_abc123
+### Create Poll
+```
+POST /api/polls/create
+Content-Type: multipart/form-data
+
+Parameters:
+  - post_id (TEXT, REQUIRED)
+  - question (TEXT, REQUIRED) - Poll question
+  - expires_at (TEXT) - Expiration timestamp (optional)
+  - is_multiple (INTEGER) - 0 for single choice, 1 for multiple (default: 0)
 
 Response:
-  {
-    "success": true,
-    "comments": [
+{
+  "success": true,
+  "pollId": "poll_1234567890",
+  "message": "Poll created"
+}
+```
+
+### Add Poll Option
+```
+POST /api/polls/options/add
+Content-Type: multipart/form-data
+
+Parameters:
+  - poll_id (TEXT, REQUIRED)
+  - option_text (TEXT, REQUIRED)
+
+Response:
+{
+  "success": true,
+  "optionId": "option_1234567890",
+  "message": "Option added"
+}
+```
+
+### Cast Vote
+```
+POST /api/polls/vote
+Content-Type: multipart/form-data
+
+Parameters:
+  - poll_id (TEXT, REQUIRED)
+  - user_id (TEXT, REQUIRED)
+  - option_id (TEXT, REQUIRED)
+
+Response:
+{
+  "success": true,
+  "message": "Vote cast"
+}
+```
+
+### Get Poll
+```
+GET /api/polls/{poll_id}
+
+Response:
+{
+  "success": true,
+  "poll": {
+    "id": "poll_id",
+    "post_id": "post_id",
+    "question": "What's your favorite color?",
+    "total_votes": 156,
+    "expires_at": "2026-04-28T10:30:00Z",
+    "is_multiple": 0,
+    "created_at": "2026-04-21T10:30:00Z",
+    "options": [
       {
-        "commentId": "...",
-        "postId": "...",
-        "userId": "user456",
-        "username": "commenter_user",
-        "content": "Great post! 👍",
-        "likeCount": 5,
-        "timestamp": "2024-01-01T13:00:00Z"
+        "id": "option_id",
+        "poll_id": "poll_id",
+        "option_text": "Red",
+        "vote_count": 45
+      },
+      {
+        "id": "option_id2",
+        "poll_id": "poll_id",
+        "option_text": "Blue",
+        "vote_count": 67
       }
     ]
   }
+}
+```
 
-// ========================
+---
 
-// 7️⃣ REPOST - Post को share/repost करना
-POST /api/social/repost
+## 🔔 NOTIFICATIONS
+
+### Get Notifications
+```
+GET /api/notifications?user_id=user_123&limit=20&offset=0
+
+Response:
+{
+  "success": true,
+  "notifications": [
+    {
+      "id": "notif_id",
+      "user_id": "user_123",
+      "actor_id": "user_456",
+      "type": "like",
+      "entity_id": "post_id",
+      "text": "John liked your post",
+      "is_read": 0,
+      "created_at": "2026-04-21T11:00:00Z"
+    }
+  ]
+}
+```
+
+### Mark as Read
+```
+POST /api/notifications/read
 Content-Type: multipart/form-data
 
 Parameters:
-  - userId (TEXT, REQUIRED) - जो repost कर रहा है
-  - postId (TEXT, REQUIRED) - Original post की ID
-  - caption (TEXT) - अपना caption (optional)
+  - notification_id (TEXT, REQUIRED)
 
 Response:
-  {
-    "success": true,
-    "repostId": "repost_user456_user123_...",
-    "message": "Post reposted"
-  }
+{
+  "success": true
+}
+```
 
-// ========================
+---
 
-// 8️⃣ FOLLOW USER - User को follow करना
-POST /api/social/follow
+## 💬 MESSAGES & CONVERSATIONS
+
+### Create Conversation
+```
+POST /api/conversations/create
 Content-Type: multipart/form-data
 
 Parameters:
-  - followerId (TEXT, REQUIRED) - जो follow कर रहा है
-  - followingId (TEXT, REQUIRED) - किसको follow कर रहा है
+  - type (TEXT) - 'private' or 'group'
+  - name (TEXT) - Group name (for group conversations)
+  - image (TEXT) - Group image URL
+  - created_by (TEXT, REQUIRED)
 
 Response:
-  {
-    "success": true,
-    "message": "User followed"
-  }
+{
+  "success": true,
+  "conversationId": "conv_1234567890",
+  "message": "Conversation created"
+}
+```
 
-// ========================
-
-// 9️⃣ UNFOLLOW USER - Unfollow करना
-POST /api/social/unfollow
+### Send Message
+```
+POST /api/messages/send
 Content-Type: multipart/form-data
 
 Parameters:
-  - followerId (TEXT, REQUIRED)
-  - followingId (TEXT, REQUIRED)
+  - conversation_id (TEXT, REQUIRED)
+  - sender_id (TEXT, REQUIRED)
+  - type (TEXT) - 'text', 'image', 'video', 'audio' (default: 'text')
+  - content (TEXT) - Message content
+  - media (FILE) - Media file (for non-text messages)
 
 Response:
-  {
-    "success": true,
-    "message": "User unfollowed"
-  }
+{
+  "success": true,
+  "messageId": "msg_1234567890",
+  "message": "Message sent"
+}
+```
 
-/**
- * ===================================================================
- * SECTION 4: CHAT SYSTEM
- * ===================================================================
- */
-
-// SEND MESSAGE - Message भेजना
-POST /api/chat/send
-Content-Type: application/json
-
-Body:
-  {
-    "senderId": "user123",
-    "receiverId": "user456",
-    "text": "Hello! 👋"
-  }
+### Get Messages
+```
+GET /api/messages/{conversation_id}?limit=50&offset=0
 
 Response:
-  {
-    "success": true,
-    "message": "Message sent"
-  }
+{
+  "success": true,
+  "messages": [
+    {
+      "id": "msg_id",
+      "conversation_id": "conv_id",
+      "sender_id": "user_123",
+      "type": "text",
+      "content": "Hey, how are you?",
+      "media_url": null,
+      "thumbnail_url": null,
+      "is_deleted": 0,
+      "created_at": "2026-04-21T11:00:00Z",
+      "updated_at": "2026-04-21T11:00:00Z"
+    }
+  ]
+}
+```
 
-/**
- * ===================================================================
- * SECTION 5: IMPORTANT NOTES
- * ===================================================================
- * 
- * 📌 ALL REQUESTS तुरंत Database में save हो जाती हैं
- * 📌 Media files (video, images) R2 में upload होती हैं
- * 📌 Unique IDs: postId, commentId, likeId, etc. automatically generate होते हैं
- * 📌 Timestamps: ISO 8601 format में stored होते हैं
- * 📌 CORS enabled है सभी requests के लिए
- * 
- * DATABASE COLUMNS (posts table):
- * ✓ postId - Unique post identifier
- * ✓ userId - Who posted
- * ✓ username - Username display
- * ✓ userImage - Profile picture
- * ✓ isVerified - Verification badge
- * ✓ type - post/reel/story
- * ✓ content - Caption/text
- * ✓ mediaUrl - Video/Image URL (R2)
- * ✓ thumbnailUrl - Preview image
- * ✓ metadata - Extra info (JSON)
- * ✓ tags - Hashtags
- * ✓ language - Content language
- * ✓ likeCount - Number of likes
- * ✓ commentCount - Number of comments
- * ✓ repostCount - Number of reposts
- * ✓ viewsCount - Number of views
- * ✓ saveCount - Number of saves
- * ✓ clickCount - Number of clicks
- * ✓ locationName, lat, lng - Location data
- * ✓ aspectRatio, duration - Media properties
- * ✓ fileSize - File size in bytes
- * ✓ status - active/deleted
- * ✓ isNsfw - Adult content flag
- * ✓ allowComments - Enable/disable comments
- * ✓ visibility - public/private/friends
- * ✓ isPromoted - Promotion status
- * ✓ adLink - Advertisement link
- * ✓ coinReward - Reward amount
- * ✓ timestamp - Created date
- * ✓ updatedAt - Last update date
- */
+---
+
+## 📞 CALLS
+
+### Start Call
+```
+POST /api/calls/start
+Content-Type: multipart/form-data
+
+Parameters:
+  - conversation_id (TEXT) - Optional, for group calls
+  - caller_id (TEXT, REQUIRED)
+  - call_type (TEXT) - 'voice' or 'video' (default: 'voice')
+
+Response:
+{
+  "success": true,
+  "callId": "call_1234567890",
+  "roomId": "room_xyz",
+  "sessionId": "session_abc",
+  "message": "Call started"
+}
+```
+
+---
+
+## 📊 DATABASE SCHEMA UPDATES
+
+### NEW TABLE: posts
+```sql
+- id TEXT PRIMARY KEY
+- user_id TEXT NOT NULL
+- type TEXT NOT NULL ('post', 'reel', 'story')
+- caption TEXT
+- visibility TEXT DEFAULT 'public'
+- like_count INTEGER DEFAULT 0
+- comment_count INTEGER DEFAULT 0
+- share_count INTEGER DEFAULT 0
+- view_count INTEGER DEFAULT 0
+- created_at TEXT
+- updated_at TEXT
+```
+
+### NEW TABLE: reels
+```sql
+- id TEXT PRIMARY KEY
+- post_id TEXT NOT NULL (FK to posts)
+- video_url TEXT NOT NULL
+- thumbnail_url TEXT
+- duration REAL
+- width INTEGER
+- height INTEGER
+- audio_name TEXT
+- audio_url TEXT
+- view_count INTEGER DEFAULT 0
+- like_count INTEGER DEFAULT 0
+- comment_count INTEGER DEFAULT 0
+- share_count INTEGER DEFAULT 0
+- is_monetized INTEGER DEFAULT 0
+- created_at TEXT
+- updated_at TEXT
+```
+
+### NEW TABLE: stories
+```sql
+- id TEXT PRIMARY KEY
+- user_id TEXT NOT NULL
+- media_url TEXT NOT NULL
+- media_type TEXT ('image' or 'video')
+- thumbnail_url TEXT
+- duration REAL
+- caption TEXT
+- view_count INTEGER DEFAULT 0
+- expires_at TEXT (auto-expire after 24h)
+- created_at TEXT
+```
+
+### NEW TABLES: groups, group_members, group_invites, group_posts
+### NEW TABLES: thoughts, thought_reposts, thought_replies
+### NEW TABLES: polls, poll_options, poll_votes
+
+---
+
+## ✅ EXAMPLE WORKFLOWS
+
+### Create and Share a Reel
+```
+1. POST /api/posts/create
+   - type: "reel"
+   - caption: "Check out this amazing sunset!"
+   - visibility: "public"
+   - video: <file>
+
+2. POST /api/posts/view (track views)
+
+3. POST /api/social/like (if user likes it)
+
+4. POST /api/thoughts/create (add a comment)
+```
+
+### Create a Story
+```
+1. POST /api/stories/create
+   - user_id: "user_123"
+   - media: <image or video>
+   - caption: "Beautiful day!"
+
+2. POST /api/stories/view (when someone views it)
+
+3. GET /api/stories/{story_id}/viewers (see who viewed)
+```
+
+### Create and Vote on a Poll
+```
+1. POST /api/polls/create
+   - post_id: "post_123"
+   - question: "What's your favorite color?"
+
+2. POST /api/polls/options/add (add options)
+
+3. POST /api/polls/vote (cast vote)
+
+4. GET /api/polls/{poll_id} (see results)
+```
+
+---
+
+**Last Updated:** April 21, 2026  
+**Version:** 2.0 (NEW SCHEMA)  
+**Status:** Ready for Integration ✅
