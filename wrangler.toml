@@ -24,20 +24,6 @@ routes = [
 ]
 vars = { R2_PUBLIC_DOMAIN = "https://pub-d825be7386864d659719039d891d33de.r2.dev" }
 
-# --- ANALYTICS ENGINE ---
-[analytics]
-enabled = true
-
 # --- LIMITS ---
 [limits]
-cpu_milliseconds = 50000
-
-# --- BUILD ---
-[build]
-cwd = "."
-command = "npm install"
-watch_paths = ["src/**/*.js"]
-
-# --- TRIGGERS ---
-[triggers]
-crons = []
+cpu_ms = 50000
