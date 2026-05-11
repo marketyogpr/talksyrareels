@@ -2,30 +2,26 @@ name = "socialapkvideos-worker"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
 
-# Define triggers
-[env.production]
-name = "socialapkvideos-worker-prod"
-routes = [
-  { pattern = "api.buyviro.com/*", zone_name = "buyviro.com" }
-]
-
-[env.staging]
-name = "socialapkvideos-worker-staging"
-routes = [
-  { pattern = "staging-api.buyviro.com/*", zone_name = "buyviro.com" }
-]
-
 # --- R2 BUCKET BINDING ---
 [[r2_buckets]]
 binding = "MY_R2_BUCKET"
 bucket_name = "socialapkvideos-media"
 preview_bucket_name = "socialapkvideos-media-preview"
 
-# --- ENVIRONMENT VARIABLES ---
+# --- PRODUCTION ENVIRONMENT ---
 [env.production]
+name = "socialapkvideos-worker-prod"
+routes = [
+  { pattern = "api.buyviro.com/*", zone_name = "buyviro.com" }
+]
 vars = { R2_PUBLIC_DOMAIN = "https://pub-d825be7386864d659719039d891d33de.r2.dev" }
 
+# --- STAGING ENVIRONMENT ---
 [env.staging]
+name = "socialapkvideos-worker-staging"
+routes = [
+  { pattern = "staging-api.buyviro.com/*", zone_name = "buyviro.com" }
+]
 vars = { R2_PUBLIC_DOMAIN = "https://pub-d825be7386864d659719039d891d33de.r2.dev" }
 
 # --- ANALYTICS ENGINE ---
