@@ -1,26 +1,47 @@
-name = "talksyrareels"
+name = "talksyra-worker"
 main = "src/index.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23"
 
-account_id = "3ff2b455ebd33a9dfc733d1db3afa8f1"
+# Define triggers
+[env.production]
+name = "talksyra-worker-prod"
+routes = [
+  { pattern = "api.talksyra.com/*", zone_name = "talksyra.com" }
+]
 
-# D1 Database Binding
-[[d1_databases]]
-binding = "DB"
-database_name = "socialapkdatabase" # अपना D1 नाम यहाँ लिखें
-database_id = "e5c60c09-bbc6-474f-a8f5-e6f279474b41"     # अपनी D1 ID यहाँ लिखें
+[env.staging]
+name = "talksyra-worker-staging"
+routes = [
+  { pattern = "staging-api.talksyra.com/*", zone_name = "talksyra.com" }
+]
 
-# R2 Bucket Binding
+# --- R2 BUCKET BINDING ---
 [[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "socialapkvideos" # अपना R2 नाम यहाँ लिखें
+binding = "MY_R2_BUCKET"
+bucket_name = "talksyra-media"
+preview_bucket_name = "talksyra-media-preview"
 
-# Durable Objects Binding - User Sessions
-[[durable_objects.bindings]]
-name = "USER_SESSION"
-class_name = "UserSession"
+# --- ENVIRONMENT VARIABLES ---
+[env.production]
+vars = { R2_PUBLIC_DOMAIN = "https://media.talksyra.com" }
 
-# Durable Objects Migration
-[[migrations]]
-tag = "v1"
-new_classes = ["UserSession"]
+[env.staging]
+vars = { R2_PUBLIC_DOMAIN = "https://staging-media.talksyra.com" }
+
+# --- ANALYTICS ENGINE ---
+[analytics]
+enabled = true
+
+# --- LIMITS ---
+[limits]
+cpu_milliseconds = 50000
+
+# --- BUILD ---
+[build]
+cwd = "."
+command = "npm install"
+watch_paths = ["src/**/*.js"]
+
+# --- TRIGGERS ---
+[triggers]
+crons = []

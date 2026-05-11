@@ -1,12 +1,30 @@
 {
-  "name": "talksyrareels-backend",
-  "private": true,
+  "name": "talksyra-worker",
+  "version": "1.0.0",
+  "description": "TalkSyra Cloudflare Worker - Real-time communication and media upload backend",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production",
+    "test": "node --test tests/**/*.test.js"
   },
+  "keywords": [
+    "cloudflare-workers",
+    "websocket",
+    "real-time-communication",
+    "webrtc",
+    "media-upload",
+    "r2"
+  ],
+  "author": "TalkSyra",
+  "license": "MIT",
   "devDependencies": {
-    "wrangler": "^4.82.2"
+    "wrangler": "^3.52.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
