@@ -1,7 +1,7 @@
 {
-  "name": "talksyra-worker",
+  "name": "socialapkvideos-worker",
   "version": "1.0.0",
-  "description": "TalkSyra Cloudflare Worker - Real-time communication and media upload backend",
+  "description": "SocialApkVideos Cloudflare Worker - Real-time communication and media upload backend",
   "main": "src/index.js",
   "type": "module",
   "scripts": {

@@ -1,32 +1,32 @@
-name = "talksyra-worker"
+name = "socialapkvideos-worker"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
 
 # Define triggers
 [env.production]
-name = "talksyra-worker-prod"
+name = "socialapkvideos-worker-prod"
 routes = [
-  { pattern = "api.talksyra.com/*", zone_name = "talksyra.com" }
+  { pattern = "api.buyviro.com/*", zone_name = "buyviro.com" }
 ]
 
 [env.staging]
-name = "talksyra-worker-staging"
+name = "socialapkvideos-worker-staging"
 routes = [
-  { pattern = "staging-api.talksyra.com/*", zone_name = "talksyra.com" }
+  { pattern = "staging-api.buyviro.com/*", zone_name = "buyviro.com" }
 ]
 
 # --- R2 BUCKET BINDING ---
 [[r2_buckets]]
 binding = "MY_R2_BUCKET"
-bucket_name = "talksyra-media"
-preview_bucket_name = "talksyra-media-preview"
+bucket_name = "socialapkvideos-media"
+preview_bucket_name = "socialapkvideos-media-preview"
 
 # --- ENVIRONMENT VARIABLES ---
 [env.production]
-vars = { R2_PUBLIC_DOMAIN = "https://media.talksyra.com" }
+vars = { R2_PUBLIC_DOMAIN = "https://pub-d825be7386864d659719039d891d33de.r2.dev" }
 
 [env.staging]
-vars = { R2_PUBLIC_DOMAIN = "https://staging-media.talksyra.com" }
+vars = { R2_PUBLIC_DOMAIN = "https://pub-d825be7386864d659719039d891d33de.r2.dev" }
 
 # --- ANALYTICS ENGINE ---
 [analytics]
