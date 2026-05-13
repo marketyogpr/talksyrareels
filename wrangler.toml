@@ -4,9 +4,9 @@ compatibility_date = "2024-09-23"
 
 # --- R2 BUCKET BINDING ---
 [[r2_buckets]]
-binding = "MY_R2_BUCKET"
-bucket_name = "socialapkvideos-media"
-preview_bucket_name = "socialapkvideos-media-preview"
+binding = "MY_R2_socialapkvideosBUCKET"
+bucket_name = "socialapkvideos"
+preview_bucket_name = "socialapkvideos-preview"
 
 # --- PRODUCTION ENVIRONMENT ---
 [env.production]
