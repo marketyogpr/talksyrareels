@@ -1,10 +1,14 @@
 /**
  * TalkSyra Cloudflare Worker
  * 
- * Handles two primary responsibilities:
+ * Handles three primary responsibilities:
  * 1. Media Upload Bridge (R2) - Secure file uploads without exposing credentials
  * 2. Real-time Signaling (WebSocket) - Persistent connections for chat & WebRTC
+ * 3. Feed Algorithm API - Personalized feed and engagement tracking
  */
+
+import FeedAPIService from './feedAPIService.js';
+import { createClient } from '@supabase/supabase-js';
 
 // In-memory store for active WebSocket connections
 const USER_SESSIONS = new Map();
@@ -14,17 +18,24 @@ export default {
     const url = new URL(request.url);
 
     try {
-      // --- 1. HANDLE MEDIA UPLOAD (R2) ---
+      // --- 1. HANDLE FEED API ---
+      if (url.pathname.startsWith("/api/")) {
+        const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+        const feedAPI = new FeedAPIService(supabase);
+        return await feedAPI.handleRequest(request);
+      }
+
+      // --- 2. HANDLE MEDIA UPLOAD (R2) ---
       if (url.pathname === "/upload" && request.method === "POST") {
         return await handleMediaUpload(request, env);
       }
 
-      // --- 2. HANDLE WEBSOCKET (SIGNALING) ---
+      // --- 3. HANDLE WEBSOCKET (SIGNALING) ---
       if (url.pathname === "/ws" && request.method === "GET") {
         return await handleWebSocket(request, env, ctx);
       }
 
-      // --- 3. HEALTH CHECK ---
+      // --- 4. HEALTH CHECK ---
       if (url.pathname === "/health") {
         return new Response(JSON.stringify({ status: "ok", timestamp: new Date().toISOString() }), {
           status: 200,
@@ -32,9 +43,50 @@ export default {
         });
       }
 
-      // Default response
+      // Default response with API documentation
       return new Response(
-        JSON.stringify({ message: "TalkSyra Worker Running" }),
+        JSON.stringify({
+          message: "TalkSyra Worker Running",
+          version: "2.0",
+          features: [
+            "Media Upload (R2)",
+            "Real-time Communication (WebSocket)",
+            "Feed Algorithm API (Instagram-like)"
+          ],
+          endpoints: {
+            feed: [
+              "/api/feed/home",
+              "/api/feed/explore",
+              "/api/feed/reels",
+              "/api/feed/trending",
+              "/api/feed/saved"
+            ],
+            engagement: [
+              "/api/engagement/like",
+              "/api/engagement/comment",
+              "/api/engagement/share",
+              "/api/engagement/save",
+              "/api/engagement/view",
+              "/api/engagement/watch",
+              "/api/engagement/report",
+              "/api/engagement/block"
+            ],
+            stats: [
+              "/api/stats/user-engagement",
+              "/api/stats/post",
+              "/api/stats/trending"
+            ],
+            interests: [
+              "/api/interests/get",
+              "/api/interests/update",
+              "/api/interests/suggestions"
+            ],
+            recommendations: [
+              "/api/recommendations/discover",
+              "/api/recommendations/similar"
+            ]
+          }
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } }
       );
     } catch (error) {
@@ -49,6 +101,7 @@ export default {
 
 /**
  * Handle Media Uploads to R2
+ * Supports folder-based structure: video/, post/, profile/, word/
  */
 async function handleMediaUpload(request, env) {
   try {
@@ -62,6 +115,7 @@ async function handleMediaUpload(request, env) {
 
     const formData = await request.formData();
     const file = formData.get("file");
+    const fileType = formData.get("type") || "other"; // video, post, profile, word
 
     if (!file) {
       return new Response(
@@ -69,6 +123,10 @@ async function handleMediaUpload(request, env) {
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
+
+    // Validate file type
+    const validTypes = ["video", "post", "profile", "word"];
+    const folder = validTypes.includes(fileType) ? fileType : "other";
 
     // Validate file size (max 500MB)
     const buffer = await file.arrayBuffer();
@@ -84,28 +142,34 @@ async function handleMediaUpload(request, env) {
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 9);
     const fileExtension = file.name.split(".").pop();
-    const fileName = `${timestamp}-${randomSuffix}.${fileExtension}`;
+    const uniqueFileName = `${timestamp}-${randomSuffix}.${fileExtension}`;
+    
+    // Create folder structure: video/timestamp-random.ext, post/timestamp-random.ext, etc.
+    const filePath = `${folder}/${uniqueFileName}`;
 
-    // Upload to R2 Bucket
-    await env.MY_R2_BUCKET.put(fileName, buffer, {
+    // Upload to R2 Bucket with folder structure
+    await env.MY_R2_BUCKET.put(filePath, buffer, {
       httpMetadata: {
         contentType: file.type || "application/octet-stream"
       },
       customMetadata: {
         uploadedAt: new Date().toISOString(),
-        originalName: file.name
+        originalName: file.name,
+        fileType: folder
       }
     });
 
     // Construct public URL
-    const publicUrl = `${env.R2_PUBLIC_DOMAIN}/${fileName}`;
+    const publicUrl = `${env.R2_PUBLIC_DOMAIN}/${filePath}`;
 
-    console.log(`File uploaded: ${fileName}`);
+    console.log(`File uploaded: ${filePath}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        fileName,
+        fileName: uniqueFileName,
+        filePath: filePath,
+        folder: folder,
         url: publicUrl,
         size: buffer.byteLength,
         timestamp

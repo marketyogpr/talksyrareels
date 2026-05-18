@@ -14,7 +14,7 @@ name = "socialapkvideos-worker-prod"
 routes = [
   { pattern = "api.buyviro.com/*", zone_name = "buyviro.com" }
 ]
-vars = { R2_PUBLIC_DOMAIN = "https://pub-d825be7386864d659719039d891d33de.r2.dev" }
+vars = { R2_PUBLIC_DOMAIN = "https://r2api.talksyra.app" }
 
 # --- STAGING ENVIRONMENT ---
 [env.staging]
@@ -22,6 +22,6 @@ name = "socialapkvideos-worker-staging"
 routes = [
   { pattern = "staging-api.buyviro.com/*", zone_name = "buyviro.com" }
 ]
-vars = { R2_PUBLIC_DOMAIN = "https://pub-d825be7386864d659719039d891d33de.r2.dev" }
+vars = { R2_PUBLIC_DOMAIN = "https://r2api.talksyra.app" }
 
 
