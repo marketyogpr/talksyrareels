@@ -8,7 +8,7 @@
  */
 
 import FeedAPIService from './feedAPIService.js';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from './supabaseClient.js';
 
 // In-memory store for active WebSocket connections
 const USER_SESSIONS = new Map();

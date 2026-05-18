@@ -22,7 +22,7 @@
   "author": "TalkSyra",
   "license": "MIT",
   "devDependencies": {
-    "wrangler": "^3.52.0"
+    "wrangler": "^3.114.17"
   },
   "engines": {
     "node": ">=18.0.0"
